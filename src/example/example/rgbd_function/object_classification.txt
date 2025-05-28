@@ -1,0 +1,270 @@
+[INFO] [1742129431.710984467] [object_classification]: 当前位置: [0.1120736  0.04701784 0.        ], 上次位置: [0.11189572 0.04706673 0.        ]
+[INFO] [1742129431.713782615] [object_classification]: 欧氏距离: 0.00018, 阈值: 0.005, 当前计数: 0
+[INFO] [1742129431.714939837] [object_classification]: 物体稳定，计数增加到: 1
+[INFO] [1742129431.715712041] [object_classification]: 检查计数: 1 > 5 = False
+[INFO] [1742129431.736721004] [object_classification]: 主循环一次迭代结束
+[INFO] [1742129431.738740300] [object_classification]: 主循环开始，self.start=True, self.moving=False
+[INFO] [1742129431.817457930] [object_classification]: plane_distance值: 1000
+[INFO] [1742129431.826146633] [object_classification]: 找到2个轮廓
+[INFO] [1742129431.826782170] [object_classification]: 处理轮廓 1/2
+[INFO] [1742129431.827953615] [object_classification]: 物体中心点: (319.5, 255.0), 半径: 204.2946319580078
+[INFO] [1742129431.828602319] [object_classification]: 矩形中心: (319.5, 255.0), 宽高: (88.0, 399.0), 角度: 90.0
+[INFO] [1742129431.829123504] [object_classification]: 调整后角度: 90.0
+[INFO] [1742129431.829691170] [object_classification]: 开始计算位置: x=319.5, y=255.0, depth=205
+[INFO] [1742129431.830697819] [object_classification]: 相机内参矩阵: [423.76199341   0.         319.25698853   0.         424.48849487
+ 201.10699463   0.           0.           1.        ]
+[INFO] [1742129431.831271485] [object_classification]: 调用depth_pixel_to_camera，参数: [319.5, 255.0, 0.205]
+[INFO] [1742129431.832088189] [object_classification]: depth_pixel_to_camera返回: [1.17559746e-04 2.60267740e-02 2.05000000e-01]
+[INFO] [1742129431.832622374] [object_classification]: self.endpoint类型: <class 'numpy.ndarray'>
+[INFO] [1742129431.833182448] [object_classification]: 准备执行: position[0] -= 0.01，position[0]=0.00011755974596554632
+[INFO] [1742129431.833986578] [object_classification]: 第二次矩阵乘法完成
+[INFO] [1742129431.835253189] [object_classification]: 3D位置: [0.10471927 0.00988244 0.        ]
+[INFO] [1742129431.835972689] [object_classification]: 边界矩形: x=120, y=211, w=400, h=89
+[INFO] [1742129431.838947837] [object_classification]: 深度标准差: 63.59663810121647
+[INFO] [1742129431.839661411] [object_classification]: 识别为球体: sphere_1
+[INFO] [1742129431.840280207] [object_classification]: 识别到物体: 类型=sphere_1, 位置坐标=(0.1047, 0.0099, 0.0000), 深度=205.0000mm
+[INFO] [1742129431.840902985] [object_classification]: 处理轮廓 2/2
+[INFO] [1742129431.842079263] [object_classification]: 物体中心点: (229.5, 237.0), 半径: 42.617584228515625
+[INFO] [1742129431.842743541] [object_classification]: 矩形中心: (229.00686645507812, 235.6849365234375), 宽高: (68.70315551757812, 71.39510345458984), 角度: 69.44395446777344
+[INFO] [1742129431.843287726] [object_classification]: 调整后角度: 69.44395446777344
+[INFO] [1742129431.843767874] [object_classification]: 开始计算位置: x=229.5, y=237.0, depth=175
+[INFO] [1742129431.845237337] [object_classification]: 相机内参矩阵: [423.76199341   0.         319.25698853   0.         424.48849487
+ 201.10699463   0.           0.           1.        ]
+[INFO] [1742129431.846025282] [object_classification]: 调用depth_pixel_to_camera，参数: [229.5, 237.0, 0.175]
+[INFO] [1742129431.847816393] [object_classification]: depth_pixel_to_camera返回: [-0.03706673  0.01479728  0.175     ]
+[INFO] [1742129431.848549189] [object_classification]: self.endpoint类型: <class 'numpy.ndarray'>
+[INFO] [1742129431.849378893] [object_classification]: 准备执行: position[0] -= 0.01，position[0]=-0.037066733771031236
+[INFO] [1742129431.851191059] [object_classification]: 第二次矩阵乘法完成
+[INFO] [1742129431.852713319] [object_classification]: 3D位置: [0.11210022 0.04706673 0.        ]
+[INFO] [1742129431.853924985] [object_classification]: 边界矩形: x=190, y=200, w=80, h=76
+[INFO] [1742129431.856937485] [object_classification]: 深度标准差: 32.608494014497815
+[INFO] [1742129431.858303430] [object_classification]: 识别为立方体: cuboid_1
+[INFO] [1742129431.860193985] [object_classification]: 识别到物体: 类型=cuboid_1, 位置坐标=(0.1121, 0.0471, 0.0000), 深度=175.0000mm
+[INFO] [1742129431.862673652] [object_classification]: 形状识别完成，识别到 2 个物体
+[INFO] [1742129431.864372837] [object_classification]: 形状识别完成，识别到 2 个物体
+[INFO] [1742129431.870071559] [object_classification]: 检查self.start状态: True
+[INFO] [1742129431.873366485] [object_classification]: 进入self.start=True条件分支
+[INFO] [1742129431.877704800] [object_classification]: 重排序后物体列表长度: 2
+[INFO] [1742129431.878625874] [object_classification]: 检查self.target_shapes状态: cuboid
+[INFO] [1742129431.879279226] [object_classification]: 已有目标形状: cuboid，寻找匹配物体
+[INFO] [1742129431.879819467] [object_classification]: 匹配目标形状的索引: [0]
+[INFO] [1742129431.880307393] [object_classification]: 目标物体信息: 中心=(229.00686645507812, 235.6849365234375), 宽高=(68.70315551757812, 71.39510345458984), 角度=69.44395446777344
+[INFO] [1742129431.881540504] [object_classification]: 当前位置: [0.11210022 0.04706673 0.        ], 上次位置: [0.1120736  0.04701784 0.        ]
+[INFO] [1742129431.882065041] [object_classification]: 欧氏距离: 6e-05, 阈值: 0.005, 当前计数: 1
+[INFO] [1742129431.882547115] [object_classification]: 物体稳定，计数增加到: 2
+[INFO] [1742129431.883006744] [object_classification]: 检查计数: 2 > 5 = False
+[INFO] [1742129431.896801393] [object_classification]: 主循环一次迭代结束
+[INFO] [1742129431.897663189] [object_classification]: 主循环开始，self.start=True, self.moving=False
+[INFO] [1742129431.918503763] [object_classification]: plane_distance值: 1000
+[INFO] [1742129431.924210615] [object_classification]: 找到2个轮廓
+[INFO] [1742129431.924855226] [object_classification]: 处理轮廓 1/2
+[INFO] [1742129431.926047967] [object_classification]: 物体中心点: (319.5, 254.5), 半径: 204.40289306640625
+[INFO] [1742129431.927322133] [object_classification]: 矩形中心: (319.5, 254.5), 宽高: (89.0, 399.0), 角度: 90.0
+[INFO] [1742129431.928068430] [object_classification]: 调整后角度: 90.0
+[INFO] [1742129431.928770522] [object_classification]: 开始计算位置: x=319.5, y=254.5, depth=205
+[INFO] [1742129431.929629818] [object_classification]: 相机内参矩阵: [423.76199341   0.         319.25698853   0.         424.48849487
+ 201.10699463   0.           0.           1.        ]
+[INFO] [1742129431.930258115] [object_classification]: 调用depth_pixel_to_camera，参数: [319.5, 254.5, 0.205]
+[INFO] [1742129431.931436374] [object_classification]: depth_pixel_to_camera返回: [1.17559746e-04 2.57853069e-02 2.05000000e-01]
+[INFO] [1742129431.932272430] [object_classification]: self.endpoint类型: <class 'numpy.ndarray'>
+[INFO] [1742129431.932970689] [object_classification]: 准备执行: position[0] -= 0.01，position[0]=0.00011755974596554632
+[INFO] [1742129431.933704152] [object_classification]: 第二次矩阵乘法完成
+[INFO] [1742129431.935994911] [object_classification]: 3D位置: [0.10495884 0.00988244 0.        ]
+[INFO] [1742129431.936866615] [object_classification]: 边界矩形: x=120, y=210, w=400, h=90
+[INFO] [1742129431.940035504] [object_classification]: 深度标准差: 64.04797854279553
+[INFO] [1742129431.940662893] [object_classification]: 识别为球体: sphere_1
+[INFO] [1742129431.941205152] [object_classification]: 识别到物体: 类型=sphere_1, 位置坐标=(0.1050, 0.0099, 0.0000), 深度=205.0000mm
+[INFO] [1742129431.941760652] [object_classification]: 处理轮廓 2/2
+[INFO] [1742129431.942689633] [object_classification]: 物体中心点: (228.81414794921875, 236.66830444335938), 半径: 41.85739517211914
+[INFO] [1742129431.944256244] [object_classification]: 矩形中心: (228.88565063476562, 235.30145263671875), 宽高: (68.57649230957031, 70.21795654296875), 角度: 65.77225494384766
+[INFO] [1742129431.949456041] [object_classification]: 调整后角度: 65.77225494384766
+[INFO] [1742129431.955213781] [object_classification]: 开始计算位置: x=228.81414794921875, y=236.66830444335938, depth=175
+[INFO] [1742129431.958447948] [object_classification]: 相机内参矩阵: [423.76199341   0.         319.25698853   0.         424.48849487
+ 201.10699463   0.           0.           1.        ]
+[INFO] [1742129431.959070930] [object_classification]: 调用depth_pixel_to_camera，参数: [228.81414794921875, 236.66830444335938, 0.175]
+[INFO] [1742129431.959826411] [object_classification]: depth_pixel_to_camera返回: [-0.03734997  0.01466054  0.175     ]
+[INFO] [1742129431.960279393] [object_classification]: self.endpoint类型: <class 'numpy.ndarray'>
+[INFO] [1742129431.960712337] [object_classification]: 准备执行: position[0] -= 0.01，position[0]=-0.03734996848946692
+[INFO] [1742129431.961315837] [object_classification]: 第二次矩阵乘法完成
+[INFO] [1742129431.962601578] [object_classification]: 3D位置: [0.11223589 0.04734997 0.        ]
+[INFO] [1742129431.963121096] [object_classification]: 边界矩形: x=190, y=200, w=78, h=76
+[INFO] [1742129431.965759726] [object_classification]: 深度标准差: 32.619787581153865
+[INFO] [1742129431.966344541] [object_classification]: 识别为立方体: cuboid_1
+[INFO] [1742129431.966810152] [object_classification]: 识别到物体: 类型=cuboid_1, 位置坐标=(0.1122, 0.0473, 0.0000), 深度=175.0000mm
+[INFO] [1742129431.967254133] [object_classification]: 形状识别完成，识别到 2 个物体
+[INFO] [1742129431.967678430] [object_classification]: 形状识别完成，识别到 2 个物体
+[INFO] [1742129431.968109837] [object_classification]: 检查self.start状态: True
+[INFO] [1742129431.968515930] [object_classification]: 进入self.start=True条件分支
+[INFO] [1742129431.968970281] [object_classification]: 重排序后物体列表长度: 2
+[INFO] [1742129431.969838041] [object_classification]: 检查self.target_shapes状态: cuboid
+[INFO] [1742129431.970276356] [object_classification]: 已有目标形状: cuboid，寻找匹配物体
+[INFO] [1742129431.970767837] [object_classification]: 匹配目标形状的索引: [0]
+[INFO] [1742129431.971169485] [object_classification]: 目标物体信息: 中心=(228.88565063476562, 235.30145263671875), 宽高=(68.57649230957031, 70.21795654296875), 角度=65.77225494384766
+[INFO] [1742129431.972299818] [object_classification]: 当前位置: [0.11223589 0.04734997 0.        ], 上次位置: [0.11210022 0.04706673 0.        ]
+[INFO] [1742129431.973381856] [object_classification]: 欧氏距离: 0.00031, 阈值: 0.005, 当前计数: 2
+[INFO] [1742129431.973764911] [object_classification]: 物体稳定，计数增加到: 3
+[INFO] [1742129431.974120578] [object_classification]: 检查计数: 3 > 5 = False
+[INFO] [1742129432.002846263] [object_classification]: 主循环一次迭代结束
+[INFO] [1742129432.004192041] [object_classification]: 主循环开始，self.start=True, self.moving=False
+[INFO] [1742129432.049419744] [object_classification]: plane_distance值: 1000
+[INFO] [1742129432.058998596] [object_classification]: 找到2个轮廓
+[INFO] [1742129432.060160337] [object_classification]: 处理轮廓 1/2
+[INFO] [1742129432.065047059] [object_classification]: 物体中心点: (319.5, 255.0), 半径: 204.2946319580078
+[INFO] [1742129432.066100374] [object_classification]: 矩形中心: (319.5, 255.0), 宽高: (88.0, 399.0), 角度: 90.0
+[INFO] [1742129432.066611670] [object_classification]: 调整后角度: 90.0
+[INFO] [1742129432.067287763] [object_classification]: 开始计算位置: x=319.5, y=255.0, depth=205
+[INFO] [1742129432.071309022] [object_classification]: 相机内参矩阵: [423.76199341   0.         319.25698853   0.         424.48849487
+ 201.10699463   0.           0.           1.        ]
+[INFO] [1742129432.072078152] [object_classification]: 调用depth_pixel_to_camera，参数: [319.5, 255.0, 0.205]
+[INFO] [1742129432.073974837] [object_classification]: depth_pixel_to_camera返回: [1.17559746e-04 2.60267740e-02 2.05000000e-01]
+[INFO] [1742129432.074521355] [object_classification]: self.endpoint类型: <class 'numpy.ndarray'>
+[INFO] [1742129432.074992652] [object_classification]: 准备执行: position[0] -= 0.01，position[0]=0.00011755974596554632
+[INFO] [1742129432.075628300] [object_classification]: 第二次矩阵乘法完成
+[INFO] [1742129432.076524930] [object_classification]: 3D位置: [0.10471927 0.00988244 0.        ]
+[INFO] [1742129432.077109263] [object_classification]: 边界矩形: x=120, y=211, w=400, h=89
+[INFO] [1742129432.079620633] [object_classification]: 深度标准差: 63.72800046189345
+[INFO] [1742129432.080065559] [object_classification]: 识别为球体: sphere_1
+[INFO] [1742129432.080460207] [object_classification]: 识别到物体: 类型=sphere_1, 位置坐标=(0.1047, 0.0099, 0.0000), 深度=205.0000mm
+[INFO] [1742129432.080834133] [object_classification]: 处理轮廓 2/2
+[INFO] [1742129432.081386281] [object_classification]: 物体中心点: (229.42645263671875, 236.70033264160156), 半径: 42.07795715332031
+[INFO] [1742129432.081829355] [object_classification]: 矩形中心: (229.041259765625, 235.9072265625), 宽高: (69.3547592163086, 71.36502838134766), 角度: 68.96248626708984
+[INFO] [1742129432.082207633] [object_classification]: 调整后角度: 68.96248626708984
+[INFO] [1742129432.082576967] [object_classification]: 开始计算位置: x=229.42645263671875, y=236.70033264160156, depth=175
+[INFO] [1742129432.083247874] [object_classification]: 相机内参矩阵: [423.76199341   0.         319.25698853   0.         424.48849487
+ 201.10699463   0.           0.           1.        ]
+[INFO] [1742129432.083667985] [object_classification]: 调用depth_pixel_to_camera，参数: [229.42645263671875, 236.70033264160156, 0.175]
+[INFO] [1742129432.084241689] [object_classification]: depth_pixel_to_camera返回: [-0.03709711  0.01467374  0.175     ]
+[INFO] [1742129432.084616522] [object_classification]: self.endpoint类型: <class 'numpy.ndarray'>
+[INFO] [1742129432.084976800] [object_classification]: 准备执行: position[0] -= 0.01，position[0]=-0.037097106453750375
+[INFO] [1742129432.085447837] [object_classification]: 第二次矩阵乘法完成
+[INFO] [1742129432.086330541] [object_classification]: 3D位置: [0.11222279 0.04709711 0.        ]
+[INFO] [1742129432.086798578] [object_classification]: 边界矩形: x=190, y=199, w=80, h=77
+[INFO] [1742129432.089324504] [object_classification]: 深度标准差: 32.69497135238688
+[INFO] [1742129432.089862744] [object_classification]: 识别为立方体: cuboid_1
+[INFO] [1742129432.090276170] [object_classification]: 识别到物体: 类型=cuboid_1, 位置坐标=(0.1122, 0.0471, 0.0000), 深度=175.0000mm
+[INFO] [1742129432.090641041] [object_classification]: 形状识别完成，识别到 2 个物体
+[INFO] [1742129432.091016430] [object_classification]: 形状识别完成，识别到 2 个物体
+[INFO] [1742129432.091392189] [object_classification]: 检查self.start状态: True
+[INFO] [1742129432.091770707] [object_classification]: 进入self.start=True条件分支
+[INFO] [1742129432.092178318] [object_classification]: 重排序后物体列表长度: 2
+[INFO] [1742129432.092563874] [object_classification]: 检查self.target_shapes状态: cuboid
+[INFO] [1742129432.092921504] [object_classification]: 已有目标形状: cuboid，寻找匹配物体
+[INFO] [1742129432.093298707] [object_classification]: 匹配目标形状的索引: [0]
+[INFO] [1742129432.093704059] [object_classification]: 目标物体信息: 中心=(229.041259765625, 235.9072265625), 宽高=(69.3547592163086, 71.36502838134766), 角度=68.96248626708984
+[INFO] [1742129432.094812744] [object_classification]: 当前位置: [0.11222279 0.04709711 0.        ], 上次位置: [0.11223589 0.04734997 0.        ]
+[INFO] [1742129432.095221022] [object_classification]: 欧氏距离: 0.00025, 阈值: 0.005, 当前计数: 3
+[INFO] [1742129432.095596911] [object_classification]: 物体稳定，计数增加到: 4
+[INFO] [1742129432.095974707] [object_classification]: 检查计数: 4 > 5 = False
+[INFO] [1742129432.102927707] [object_classification]: 主循环一次迭代结束
+[INFO] [1742129432.103458337] [object_classification]: 主循环开始，self.start=True, self.moving=False
+[INFO] [1742129432.123335837] [object_classification]: plane_distance值: 1000
+[INFO] [1742129432.129517911] [object_classification]: 找到2个轮廓
+[INFO] [1742129432.130685392] [object_classification]: 处理轮廓 1/2
+[INFO] [1742129432.132109041] [object_classification]: 物体中心点: (319.5, 255.0), 半径: 204.2946319580078
+[INFO] [1742129432.132934615] [object_classification]: 矩形中心: (319.5, 255.0), 宽高: (88.0, 399.0), 角度: 90.0
+[INFO] [1742129432.133861263] [object_classification]: 调整后角度: 90.0
+[INFO] [1742129432.134351689] [object_classification]: 开始计算位置: x=319.5, y=255.0, depth=205
+[INFO] [1742129432.135677411] [object_classification]: 相机内参矩阵: [423.76199341   0.         319.25698853   0.         424.48849487
+ 201.10699463   0.           0.           1.        ]
+[INFO] [1742129432.136900892] [object_classification]: 调用depth_pixel_to_camera，参数: [319.5, 255.0, 0.205]
+[INFO] [1742129432.138072578] [object_classification]: depth_pixel_to_camera返回: [1.17559746e-04 2.60267740e-02 2.05000000e-01]
+[INFO] [1742129432.138626467] [object_classification]: self.endpoint类型: <class 'numpy.ndarray'>
+[INFO] [1742129432.143094837] [object_classification]: 准备执行: position[0] -= 0.01，position[0]=0.00011755974596554632
+[INFO] [1742129432.145161892] [object_classification]: 第二次矩阵乘法完成
+[INFO] [1742129432.161434078] [object_classification]: 3D位置: [0.10471927 0.00988244 0.        ]
+[INFO] [1742129432.162206652] [object_classification]: 边界矩形: x=120, y=211, w=400, h=89
+[INFO] [1742129432.165270967] [object_classification]: 深度标准差: 63.79699382164266
+[INFO] [1742129432.165804707] [object_classification]: 识别为球体: sphere_1
+[INFO] [1742129432.166259929] [object_classification]: 识别到物体: 类型=sphere_1, 位置坐标=(0.1047, 0.0099, 0.0000), 深度=205.0000mm
+[INFO] [1742129432.166667041] [object_classification]: 处理轮廓 2/2
+[INFO] [1742129432.167231004] [object_classification]: 物体中心点: (229.32528686523438, 236.46006774902344), 半径: 42.25518798828125
+[INFO] [1742129432.167689726] [object_classification]: 矩形中心: (228.98275756835938, 235.70689392089844), 宽高: (69.26436614990234, 71.1213150024414), 角度: 68.1985855102539
+[INFO] [1742129432.168087504] [object_classification]: 调整后角度: 68.1985855102539
+[INFO] [1742129432.168484504] [object_classification]: 开始计算位置: x=229.32528686523438, y=236.46006774902344, depth=175
+[INFO] [1742129432.169204115] [object_classification]: 相机内参矩阵: [423.76199341   0.         319.25698853   0.         424.48849487
+ 201.10699463   0.           0.           1.        ]
+[INFO] [1742129432.169787115] [object_classification]: 调用depth_pixel_to_camera，参数: [229.32528686523438, 236.46006774902344, 0.175]
+[INFO] [1742129432.170513504] [object_classification]: depth_pixel_to_camera返回: [-0.03713888  0.01457469  0.175     ]
+[INFO] [1742129432.171152837] [object_classification]: self.endpoint类型: <class 'numpy.ndarray'>
+[INFO] [1742129432.171608911] [object_classification]: 准备执行: position[0] -= 0.01，position[0]=-0.03713888464595534
+[INFO] [1742129432.172667596] [object_classification]: 第二次矩阵乘法完成
+[INFO] [1742129432.174171392] [object_classification]: 3D位置: [0.11232106 0.04713888 0.        ]
+[INFO] [1742129432.175352244] [object_classification]: 边界矩形: x=190, y=200, w=80, h=76
+[INFO] [1742129432.180100411] [object_classification]: 深度标准差: 32.69121655874191
+[INFO] [1742129432.180913355] [object_classification]: 识别为立方体: cuboid_1
+[INFO] [1742129432.181328689] [object_classification]: 识别到物体: 类型=cuboid_1, 位置坐标=(0.1123, 0.0471, 0.0000), 深度=175.0000mm
+[INFO] [1742129432.181777059] [object_classification]: 形状识别完成，识别到 2 个物体
+[INFO] [1742129432.182197652] [object_classification]: 形状识别完成，识别到 2 个物体
+[INFO] [1742129432.182657615] [object_classification]: 检查self.start状态: True
+[INFO] [1742129432.183087411] [object_classification]: 进入self.start=True条件分支
+[INFO] [1742129432.183609374] [object_classification]: 重排序后物体列表长度: 2
+[INFO] [1742129432.184052281] [object_classification]: 检查self.target_shapes状态: cuboid
+[INFO] [1742129432.185997059] [object_classification]: 已有目标形状: cuboid，寻找匹配物体
+[INFO] [1742129432.186482911] [object_classification]: 匹配目标形状的索引: [0]
+[INFO] [1742129432.190225596] [object_classification]: 目标物体信息: 中心=(228.98275756835938, 235.70689392089844), 宽高=(69.26436614990234, 71.1213150024414), 角度=68.1985855102539
+[INFO] [1742129432.191603004] [object_classification]: 当前位置: [0.11232106 0.04713888 0.        ], 上次位置: [0.11222279 0.04709711 0.        ]
+[INFO] [1742129432.198419096] [object_classification]: 欧氏距离: 0.00011, 阈值: 0.005, 当前计数: 4
+[INFO] [1742129432.203458633] [object_classification]: 物体稳定，计数增加到: 5
+[INFO] [1742129432.204325022] [object_classification]: 检查计数: 5 > 5 = False
+[INFO] [1742129432.218948411] [object_classification]: 主循环一次迭代结束
+[INFO] [1742129432.223469263] [object_classification]: 主循环开始，self.start=True, self.moving=False
+[INFO] [1742129432.274237096] [object_classification]: plane_distance值: 1000
+[INFO] [1742129432.288718244] [object_classification]: 找到2个轮廓
+[INFO] [1742129432.302018429] [object_classification]: 处理轮廓 1/2
+[INFO] [1742129432.306003170] [object_classification]: 物体中心点: (319.5, 254.5), 半径: 204.40289306640625
+[INFO] [1742129432.311281763] [object_classification]: 矩形中心: (319.5, 254.5), 宽高: (89.0, 399.0), 角度: 90.0
+[INFO] [1742129432.314807189] [object_classification]: 调整后角度: 90.0
+[INFO] [1742129432.317302392] [object_classification]: 开始计算位置: x=319.5, y=254.5, depth=205
+[INFO] [1742129432.323799874] [object_classification]: 相机内参矩阵: [423.76199341   0.         319.25698853   0.         424.48849487
+ 201.10699463   0.           0.           1.        ]
+[INFO] [1742129432.325171485] [object_classification]: 调用depth_pixel_to_camera，参数: [319.5, 254.5, 0.205]
+[INFO] [1742129432.334058059] [object_classification]: depth_pixel_to_camera返回: [1.17559746e-04 2.57853069e-02 2.05000000e-01]
+[INFO] [1742129432.351721837] [object_classification]: self.endpoint类型: <class 'numpy.ndarray'>
+[INFO] [1742129432.355435837] [object_classification]: 准备执行: position[0] -= 0.01，position[0]=0.00011755974596554632
+[INFO] [1742129432.358599300] [object_classification]: 第二次矩阵乘法完成
+[INFO] [1742129432.362735985] [object_classification]: 3D位置: [0.10495884 0.00988244 0.        ]
+[INFO] [1742129432.366205577] [object_classification]: 边界矩形: x=120, y=210, w=400, h=90
+[INFO] [1742129432.386603133] [object_classification]: 深度标准差: 63.92265072333168
+[INFO] [1742129432.407135300] [object_classification]: 识别为球体: sphere_1
+[INFO] [1742129432.408908577] [object_classification]: 识别到物体: 类型=sphere_1, 位置坐标=(0.1050, 0.0099, 0.0000), 深度=205.0000mm
+[INFO] [1742129432.410555189] [object_classification]: 处理轮廓 2/2
+[INFO] [1742129432.412783059] [object_classification]: 物体中心点: (228.5, 236.5), 半径: 41.8868522644043
+[INFO] [1742129432.416820763] [object_classification]: 矩形中心: (228.53448486328125, 235.58621215820312), 宽高: (68.33588409423828, 69.26435852050781), 角度: 68.19859313964844
+[INFO] [1742129432.424162077] [object_classification]: 调整后角度: 68.19859313964844
+[INFO] [1742129432.425496374] [object_classification]: 开始计算位置: x=228.5, y=236.5, depth=175
+[INFO] [1742129432.426959040] [object_classification]: 相机内参矩阵: [423.76199341   0.         319.25698853   0.         424.48849487
+ 201.10699463   0.           0.           1.        ]
+[INFO] [1742129432.428748540] [object_classification]: 调用depth_pixel_to_camera，参数: [228.5, 236.5, 0.175]
+[INFO] [1742129432.431986559] [object_classification]: depth_pixel_to_camera返回: [-0.0374797   0.01459115  0.175     ]
+[INFO] [1742129432.434016411] [object_classification]: self.endpoint类型: <class 'numpy.ndarray'>
+[INFO] [1742129432.437933170] [object_classification]: 准备执行: position[0] -= 0.01，position[0]=-0.03747970143382827
+[INFO] [1742129432.450040263] [object_classification]: 第二次矩阵乘法完成
+[INFO] [1742129432.457169244] [object_classification]: 3D位置: [0.11230473 0.0474797  0.        ]
+[INFO] [1742129432.460081318] [object_classification]: 边界矩形: x=190, y=198, w=78, h=78
+[INFO] [1742129432.474119670] [object_classification]: 深度标准差: 32.608494014497815
+[INFO] [1742129432.476525744] [object_classification]: 识别为立方体: cuboid_1
+[INFO] [1742129432.478995929] [object_classification]: 识别到物体: 类型=cuboid_1, 位置坐标=(0.1123, 0.0475, 0.0000), 深度=175.0000mm
+[INFO] [1742129432.490903170] [object_classification]: 形状识别完成，识别到 2 个物体
+[INFO] [1742129432.491569263] [object_classification]: 形状识别完成，识别到 2 个物体
+[INFO] [1742129432.492611207] [object_classification]: 检查self.start状态: True
+[INFO] [1742129432.498342837] [object_classification]: 进入self.start=True条件分支
+[INFO] [1742129432.499008429] [object_classification]: 重排序后物体列表长度: 2
+[INFO] [1742129432.499608781] [object_classification]: 检查self.target_shapes状态: cuboid
+[INFO] [1742129432.500140911] [object_classification]: 已有目标形状: cuboid，寻找匹配物体
+[INFO] [1742129432.500672948] [object_classification]: 匹配目标形状的索引: [0]
+[INFO] [1742129432.501355892] [object_classification]: 目标物体信息: 中心=(228.53448486328125, 235.58621215820312), 宽高=(68.33588409423828, 69.26435852050781), 角度=68.19859313964844
+[INFO] [1742129432.502775726] [object_classification]: 当前位置: [0.11230473 0.0474797  0.        ], 上次位置: [0.11232106 0.04713888 0.        ]
+[INFO] [1742129432.503294966] [object_classification]: 欧氏距离: 0.00034, 阈值: 0.005, 当前计数: 5
+[INFO] [1742129432.503728392] [object_classification]: 物体稳定，计数增加到: 6
+[INFO] [1742129432.504130689] [object_classification]: 检查计数: 6 > 5 = True
+[INFO] [1742129432.504554207] [object_classification]: 计数超过5，准备移动
+[INFO] [1742129432.505312466] [object_classification]: 移动线程已启动
+[INFO] [1742129432.521094911] [object_classification]: 主循环一次迭代结束
+[INFO] [1742129432.523121966] [object_classification]: 直接设置目标形状: cuboid
+[INFO] [1742129432.524669022] [object_classification]: 主循环开始，self.start=True, self.moving=True
+[INFO] [1742129432.557390763] [object_classification]: self.moving为True，跳过形状识别
+[INFO] [1742129432.569544188] [object_classification]: 主循环一次迭代结束
+[INFO] [1742129432.570354300] [object_classification]: 主循环开始，self.start=True, self.moving=True
+[INFO] [1742129432.596966596] [object_classification]: self.moving为True，跳过形状识别
+[INFO] [1742129432.628661725] [object_classification]: 主循环一次迭代结束
+[INFO] [1742129432.629554151] [object_classification]: 主循环开始，self.start=True, self.moving=True
