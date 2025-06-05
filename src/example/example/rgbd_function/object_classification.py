@@ -42,9 +42,9 @@ def depth_pixel_to_camera(pixel_coords, intrinsic_matrix):
 
 class ObjectClassificationNode(Node):
     hand2cam_tf_matrix = [
-        [0.0, 0.0, 1.0, -0.101],
-        [-1.0, 0.0, 0.0, 0.0],  #0.011
-        [0.0, -1.0, 0.0, 0.037],  # 0.045
+        [0.0, 0.0, 1.0, -0.101],  #爪子到相机
+        [-1.0, 0.0, 0.0, 0.0],  #0.011  相机中心点
+        [0.0, -1.0, 0.0, 0.037],  # 0.045相机支架高度
         [0.0, 0.0, 0.0, 1.0]
     ]
     # pick_offset = [0.01, 0.01, 0.0, -0.01, 0.0]  # x1, x2, y1, y2, z
@@ -87,9 +87,9 @@ class ObjectClassificationNode(Node):
             self.shapes = None
             self.colors = None
             self.target_shapes = ''
-            # self.roi = [120, 300, 120, 520]  #self.roi = [y_min, y_max, x_min, x_max]
+            self.roi = [70, 250, 120, 520]  #self.roi = [y_min, y_max, x_min, x_max]  相机水平的参数
             # self.roi = [160, 315, 120, 520]  # ROI区域: [y_min, y_max, x_min, x_max] 之前版本
-            self.roi = [150, 330, 120, 520]  # ROI区域: [y_min, y_max, x_min, x_max]
+            # self.roi = [150, 330, 120, 520]  # ROI区域: [y_min, y_max, x_min, x_max]
 
 
             self.endpoint = None
@@ -101,10 +101,9 @@ class ObjectClassificationNode(Node):
             
             # print("准备获取参数")
             self.debug = self.get_parameter('debug').value
-            # self.plane_distance = self.get_parameter('plane_distance').value
-            self.plane_distance = 250
+            self.plane_distance = self.get_parameter('plane_distance').value
             
-            print(f"参数获取到: debug={self.debug}, plane_distance={self.plane_distance}")
+            # print(f"参数获取到: debug={self.debug}, plane_distance={self.plane_distance}")
             
             # print("准备读取YAML数据")
             self.lab_data = common.get_yaml_data("/home/ubuntu/software/lab_tool/lab_config.yaml")
@@ -253,8 +252,8 @@ class ObjectClassificationNode(Node):
         #set_servo_position(self.joints_pub, 1, ((1, 500), (2, 483), (3, 335), (4, 55), (5, 500), (10, 360)))  #相机有倾斜角度
         # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 522), (3, 318), (4, 51), (5, 500), (10, 360)))  #相机有倾斜角度没有垫高
         # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 648), (3, 183), (4, 91), (5, 500), (10, 550)))  #相机有倾斜角度没有垫高角度效果更佳。
-        set_servo_position(self.joints_pub, 1, ((1, 500), (2, 700), (3, 151), (4, 70), (5, 500), (10, 600)))  #相机倾斜
-        # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 522), (3, 218), (4, 51), (5, 500), (10, 550)))  #相机水平
+        # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 700), (3, 151), (4, 70), (5, 500), (10, 600)))  #相机倾斜
+        set_servo_position(self.joints_pub, 1, ((1, 500), (2, 522), (3, 218), (4, 51), (5, 500), (10, 550)))  #相机水平
         self.endpoint = common.xyz_quat_to_mat([pose_t.x, pose_t.y, pose_t.z], [pose_r.w, pose_r.x, pose_r.y, pose_r.z])
 
     def move(self, obejct_info):
@@ -319,11 +318,11 @@ class ObjectClassificationNode(Node):
                     angle = angle % 180
                     angle = angle - 180 if angle > 90 else (angle + 180 if angle < -90 else angle)
                 
-                # 安全处理 res2.rpy
-                rpy_val = 0
-                if hasattr(res2, 'rpy') and isinstance(res2.rpy, (list, tuple, np.ndarray)) and len(res2.rpy) > 0:
-                    rpy_val = res2.rpy[-1]
-                angle = 500 + int(1000 * (angle + rpy_val) / 240)
+                # self.get_logger().info(str([angle, shape]))
+                # if angle == 90:
+                    # angle = 0
+                angle = 500 + int(1000 * (angle + res2.rpy[-1]) / 240)
+                # self.get_logger().info(f"最终计算的角度值: {angle}")
         else:
             angle = 500
         
@@ -392,6 +391,7 @@ class ObjectClassificationNode(Node):
             
             # 检查depth_pixel_to_camera函数输入
             # self.get_logger().info(f"调用depth_pixel_to_camera，参数: {[x, y, depth / 1000]}")
+            # 步骤1：像素到相机坐标系
             position = depth_pixel_to_camera([x, y, depth / 1000], intrinsic_matrix)
             # self.get_logger().info(f"depth_pixel_to_camera返回: {position}")
             
@@ -403,7 +403,7 @@ class ObjectClassificationNode(Node):
             
             # 这里可能出现NoneType错误
             # self.get_logger().info(f"准备执行: position[0] -= 0.01，position[0]={position[0]}")
-            position[0] -= 0.01
+            # position[0] -= 0.01
             # self.get_logger().info(f"position[0]减去0.01后: {position[0]}")
             
             # 检查hand2cam_tf_matrix
@@ -411,10 +411,13 @@ class ObjectClassificationNode(Node):
             
             # 转换到机器人坐标系
             # self.get_logger().info("准备执行坐标转换")
+            # 步骤2：相机到手爪坐标系
             pose_end = np.matmul(self.hand2cam_tf_matrix, common.xyz_euler_to_mat(position, (0, 0, 0)))
             # self.get_logger().info("第一次矩阵乘法完成")
+             # 步骤3：手爪到世界坐标系
             world_pose = np.matmul(self.endpoint, pose_end)
             # self.get_logger().info("第二次矩阵乘法完成")
+            # 提取位置信息
             pose_t, pose_r = common.mat_to_xyz_euler(world_pose)
             # self.get_logger().info(f"位置计算完成: {pose_t}")
             
@@ -442,47 +445,12 @@ class ObjectClassificationNode(Node):
         min_dist = depth_image[min_y, min_x]  # 获取距离摄像头最近的物体的距离(get the distance of the object that is closest to the camera)
         return min_dist
 
-    def correct_roi_depth(self, depth_image):
-        """
-        对 depth_image 的 ROI 区域内的深度值按行进行线性修正，
-        使得同一平面上各行的平均深度相同，从而消除由于相机倾斜带来的梯度。
-        
-        假设 self.roi = [y_min, y_max, x_min, x_max]
-        """
-        y_min, y_max, x_min, x_max = self.roi
-        roi = depth_image[y_min:y_max, x_min:x_max].astype(np.float32)
-        
-        # 选取 ROI 顶部行的非零平均值作为参考
-        ref_row = roi[0, :]
-        nonzero = ref_row[ref_row > 0]
-        if len(nonzero) > 0:
-            ref_mean = np.mean(nonzero)
-        else:
-            ref_mean = 0
-
-        # 针对 ROI 中每一行计算补偿
-        corrected_roi = roi.copy()
-        for i in range(roi.shape[0]):
-            row = roi[i, :]
-            nonzero = row[row > 0]
-            if len(nonzero) > 0:
-                row_mean = np.mean(nonzero)
-                offset = ref_mean - row_mean
-            else:
-                offset = 0
-            # 注意：直接加偏置，不会对零值（无效数据）做处理
-            corrected_roi[i, :] = np.where(row > 0, row + offset, row)
-
-        # 将修正后的 ROI 写回原深度图（不影响 ROI 之外的区域）
-        depth_image[y_min:y_max, x_min:x_max] = corrected_roi.astype(depth_image.dtype)
-        return depth_image
-
     def get_contours(self, depth_image, min_dist):
         try:
             # 检查self.plane_distance是否为None
             if self.plane_distance is None:
                 # 设置一个默认值
-                self.plane_distance = 1000  # 使用一个合理的默认值
+                self.plane_distance = 200  # 使用一个合理的默认值
             
             # self.get_logger().info(f"plane_distance值: {self.plane_distance}")
             
@@ -585,9 +553,9 @@ class ObjectClassificationNode(Node):
                     # position[1] = 0.0255
                     # position[2] = 0.0
 
-                    position[0] += 0.09
+                    position[0] += 0.00
                     # position[1] -= 0.02
-                    position[2] += 0.03
+                    position[2] += 0.02
                     
                     
                     self.get_logger().info(f"3D位置: {position}")
@@ -701,9 +669,7 @@ class ObjectClassificationNode(Node):
                 if self.shapes is None and self.colors is None:
                     self.shapes = ["sphere", "cuboid", "cylinder"]  # 设置默认识别所有形状
                     # self.get_logger().info(f"设置默认识别所有形状: {self.shapes}")
-                
-                # 添加日志，显示当前循环开始
-                # self.get_logger().info(f"主循环开始，self.start={self.start}, self.moving={self.moving}")
+
                 
                 try:
                     ros_rgb_image, ros_depth_image, depth_camera_info = self.image_queue.get(block=True, timeout=1)
@@ -722,9 +688,6 @@ class ObjectClassificationNode(Node):
                     # rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
 
                     depth_image = np.ndarray(shape=(ros_depth_image.height, ros_depth_image.width), dtype=np.uint16, buffer=ros_depth_image.data)
-                    
-                    # 在进行其他处理前，对ROI区域的深度进行修正
-                    depth_image = self.correct_roi_depth(depth_image)
                     
                     # 详细打印图像尺寸
                     # self.get_logger().info(f"RGB图像尺寸: 高={rgb_image.shape[0]}, 宽={rgb_image.shape[1]}, 通道={rgb_image.shape[2]}")
