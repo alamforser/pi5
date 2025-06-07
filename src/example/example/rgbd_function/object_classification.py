@@ -245,12 +245,6 @@ class ObjectClassificationNode(Node):
         endpoint = self.send_request(self.set_joint_value_target_client, msg)
         pose_t = endpoint.pose.position
         pose_r = endpoint.pose.orientation
-        # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 470), (3, 220), (4, 90), (5, 500), (10, 200)))
-        # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 420), (3, 216), (4, 146), (5, 500), (10, 360)))
-        #set_servo_position(self.joints_pub, 1, ((1, 500), (2, 360), (3, 310), (4, 136), (5, 500), (10, 360)))  #相机水平
-        #set_servo_position(self.joints_pub, 1, ((1, 500), (2, 483), (3, 335), (4, 55), (5, 500), (10, 360)))  #相机有倾斜角度
-        # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 522), (3, 318), (4, 51), (5, 500), (10, 360)))  #相机有倾斜角度没有垫高
-        # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 648), (3, 183), (4, 91), (5, 500), (10, 550)))  #相机有倾斜角度没有垫高角度效果更佳。
         
         # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 412), (3, 255), (4, 74), (5, 489), (10, 550)))  #相机水平
         set_servo_position(self.joints_pub, 1, ((1, 500), (2, 700), (3, 86), (4, 70), (5, 500), (10, 600)))  #相机倾斜
