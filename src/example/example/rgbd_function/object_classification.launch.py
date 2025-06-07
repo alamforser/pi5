@@ -52,7 +52,7 @@ def launch_setup(context):
             depth_camera_launch,
             controller_launch,
             kinematics_launch,
-            # object_classification_node,
+            object_classification_node,
             ]
 
 def generate_launch_description():
