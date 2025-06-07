@@ -48,7 +48,7 @@ class ObjectClassificationNode(Node):
         [0.0, 0.0, 0.0, 1.0]
     ]
     # pick_offset = [0.01, 0.01, 0.0, -0.01, 0.0]  # x1, x2, y1, y2, z
-    pick_offset = [0.0, 0.0, 0.0, -0.03, 0.0]  # x1, x2, y1, y2, z
+    pick_offset = [0.0, 0.0, 0.0, 0.0, 0.0]  # x1, x2, y1, y2, z
     '''
                 
                  x1(+)
@@ -240,9 +240,8 @@ class ObjectClassificationNode(Node):
         return response
 
     def goto_default(self):
-        msg = set_joint_value_target([500.0, 470.0, 220.0, 90.0, 500.0])
-        # 记录日志，表示正在前往默认位置
-        # self.get_logger().info('\033[1;32m%s\033[0m' % "机械臂初始化")
+        # msg = set_joint_value_target([500.0, 412.0, 255.0, 74.0, 489.0])  # 相机水平
+        msg = set_joint_value_target([500.0, 700.0, 86.0, 70.0, 500.0])  # 相机倾斜
         endpoint = self.send_request(self.set_joint_value_target_client, msg)
         pose_t = endpoint.pose.position
         pose_r = endpoint.pose.orientation
@@ -252,8 +251,9 @@ class ObjectClassificationNode(Node):
         #set_servo_position(self.joints_pub, 1, ((1, 500), (2, 483), (3, 335), (4, 55), (5, 500), (10, 360)))  #相机有倾斜角度
         # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 522), (3, 318), (4, 51), (5, 500), (10, 360)))  #相机有倾斜角度没有垫高
         # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 648), (3, 183), (4, 91), (5, 500), (10, 550)))  #相机有倾斜角度没有垫高角度效果更佳。
-        # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 700), (3, 151), (4, 70), (5, 500), (10, 600)))  #相机倾斜
-        set_servo_position(self.joints_pub, 1, ((1, 500), (2, 522), (3, 218), (4, 51), (5, 500), (10, 550)))  #相机水平
+        
+        # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 412), (3, 255), (4, 74), (5, 489), (10, 550)))  #相机水平
+        set_servo_position(self.joints_pub, 1, ((1, 500), (2, 700), (3, 86), (4, 70), (5, 500), (10, 600)))  #相机倾斜
         self.endpoint = common.xyz_quat_to_mat([pose_t.x, pose_t.y, pose_t.z], [pose_r.w, pose_r.x, pose_r.y, pose_r.z])
 
     def move(self, obejct_info):
@@ -401,16 +401,6 @@ class ObjectClassificationNode(Node):
                 # self.get_logger().error("self.endpoint未初始化")
                 return None
             
-            # 这里可能出现NoneType错误
-            # self.get_logger().info(f"准备执行: position[0] -= 0.01，position[0]={position[0]}")
-            # position[0] -= 0.01
-            # self.get_logger().info(f"position[0]减去0.01后: {position[0]}")
-            
-            # 检查hand2cam_tf_matrix
-            # self.get_logger().info(f"self.hand2cam_tf_matrix类型: {type(self.hand2cam_tf_matrix)}")
-            
-            # 转换到机器人坐标系
-            # self.get_logger().info("准备执行坐标转换")
             # 步骤2：相机到手爪坐标系
             pose_end = np.matmul(self.hand2cam_tf_matrix, common.xyz_euler_to_mat(position, (0, 0, 0)))
             # self.get_logger().info("第一次矩阵乘法完成")
