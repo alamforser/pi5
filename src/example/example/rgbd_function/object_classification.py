@@ -245,10 +245,80 @@ class ObjectClassificationNode(Node):
         endpoint = self.send_request(self.set_joint_value_target_client, msg)
         pose_t = endpoint.pose.position
         pose_r = endpoint.pose.orientation
+        # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 470), (3, 220), (4, 90), (5, 500), (10, 200)))
+        # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 420), (3, 216), (4, 146), (5, 500), (10, 360)))
+        #set_servo_position(self.joints_pub, 1, ((1, 500), (2, 360), (3, 310), (4, 136), (5, 500), (10, 360)))  #相机水平
+        #set_servo_position(self.joints_pub, 1, ((1, 500), (2, 483), (3, 335), (4, 55), (5, 500), (10, 360)))  #相机有倾斜角度
+        # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 522), (3, 318), (4, 51), (5, 500), (10, 360)))  #相机有倾斜角度没有垫高
+        # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 648), (3, 183), (4, 91), (5, 500), (10, 550)))  #相机有倾斜角度没有垫高角度效果更佳。
         
         # set_servo_position(self.joints_pub, 1, ((1, 500), (2, 412), (3, 255), (4, 74), (5, 489), (10, 550)))  #相机水平
         set_servo_position(self.joints_pub, 1, ((1, 500), (2, 700), (3, 86), (4, 70), (5, 500), (10, 600)))  #相机倾斜
         self.endpoint = common.xyz_quat_to_mat([pose_t.x, pose_t.y, pose_t.z], [pose_r.w, pose_r.x, pose_r.y, pose_r.z])
+
+    def proc(self, source_image, result_image, color_ranges):
+        h, w = source_image.shape[:2]
+        color = color_ranges['lab']['Stereo'][self.target_color]
+
+        img = cv2.resize(source_image, (int(w/2), int(h/2)))
+        img_blur = cv2.GaussianBlur(img, (3, 3), 3) # 高斯模糊(Gaussian blur)
+        img_lab = cv2.cvtColor(img_blur, cv2.COLOR_BGR2LAB) # 转换到 LAB 空间(convert to the LAB space)
+        mask = cv2.inRange(img_lab, tuple(color['min']), tuple(color['max'])) # 二值化(binarization)
+
+        # 平滑边缘，去除小块，合并靠近的块(smooth the edges, remove small patches, and merge adjacent patches)
+        eroded = cv2.erode(mask, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
+        dilated = cv2.dilate(eroded, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
+        print(f"腐蚀后非零像素数: {np.count_nonzero(eroded)}, 膨胀后非零像素数: {np.count_nonzero(dilated)}")
+        
+        # 找出最大轮廓(find out the contour with the maximal area)
+        contours = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[-2]
+        print(f"找到轮廓数量: {len(contours)}")
+        
+        min_c = None
+        for i, c in enumerate(contours):
+            area = math.fabs(cv2.contourArea(c))
+            print(f"轮廓 {i} 面积: {area}")
+            if area < 50:
+                print(f"轮廓 {i} 面积小于50，跳过")
+                continue
+            (center_x, center_y), radius = cv2.minEnclosingCircle(c) # 最小外接圆(the minimum circumcircle)
+            print(f"轮廓 {i} 中心点: ({center_x}, {center_y}), 半径: {radius}")
+            if min_c is None:
+                min_c = (c, center_x)
+                print(f"设置初始最左轮廓: 轮廓 {i}")
+            elif center_x < min_c[1]:
+                if center_x < min_c[1]:
+                    min_c = (c, center_x)
+                    print(f"更新最左轮廓: 轮廓 {i}")
+
+        # 如果有符合要求的轮廓(if there are contours that meet the requirements)
+        if min_c is not None:
+            (center_x, center_y), radius = cv2.minEnclosingCircle(min_c[0]) # 最小外接圆(the minimum circumcircle)
+
+            # 圈出识别的的要追踪的色块(encircle the recognized color block to be tracked)
+            circle_color = common.range_rgb[self.target_color] if self.target_color in common.range_rgb else (0x55, 0x55, 0x55)
+            cv2.circle(result_image, (int(center_x * 2), int(center_y * 2)), int(radius * 2), circle_color, 2)
+
+            center_x = center_x * 2
+            center_x_1 = center_x / w
+            if abs(center_x_1 - 0.5) > 0.02:  # 相差范围小于一定值就不用再动了(stop moving if the difference range is less than a certain value)
+                self.pid_yaw.SetPoint = 0.5  # 我们的目标是要让色块在画面的中心, 就是整个画面的像素宽度的 1/2 位置(our goal is to position the color block at the center of the frame, which is at the halfway point of the entire pixel width of the frame)
+                self.pid_yaw.update(center_x_1)
+                self.yaw = min(max(self.yaw + self.pid_yaw.output, 0), 1000)
+            else:
+                self.pid_yaw.clear() # 如果已经到达中心了就复位一下 pid 控制器(if it has already reached the center, reset the PID controller)
+
+            center_y = center_y * 2
+            center_y_1 = center_y / h
+            if abs(center_y_1 - 0.5) > 0.02:
+                self.pid_pitch.SetPoint = 0.5
+                self.pid_pitch.update(center_y_1)
+                self.pitch = min(max(self.pitch + self.pid_pitch.output, 100), 720)
+            else:
+                self.pid_pitch.clear()
+            return (result_image, (self.pitch, self.yaw), (center_x, center_y), radius * 2)
+        else:
+            return (result_image, None, None, 0)
 
     def move(self, obejct_info):
         shape, pose_t = obejct_info[:2] # 获取前两个元素：物体形状和位置坐标
@@ -385,7 +455,7 @@ class ObjectClassificationNode(Node):
             
             # 检查depth_pixel_to_camera函数输入
             # self.get_logger().info(f"调用depth_pixel_to_camera，参数: {[x, y, depth / 1000]}")
-            # 步骤1：像素到相机坐标系
+            # 步骤1：像素坐标转到相机坐标系
             position = depth_pixel_to_camera([x, y, depth / 1000], intrinsic_matrix)
             # self.get_logger().info(f"depth_pixel_to_camera返回: {position}")
             
@@ -395,17 +465,17 @@ class ObjectClassificationNode(Node):
                 # self.get_logger().error("self.endpoint未初始化")
                 return None
             
-            # 步骤2：相机到手爪坐标系
+            # 步骤2：# 相机坐标系到手爪坐标系
             pose_end = np.matmul(self.hand2cam_tf_matrix, common.xyz_euler_to_mat(position, (0, 0, 0)))
             # self.get_logger().info("第一次矩阵乘法完成")
-             # 步骤3：手爪到世界坐标系
+             # 步骤3： #手爪坐标系到世界坐标系
             world_pose = np.matmul(self.endpoint, pose_end)
             # self.get_logger().info("第二次矩阵乘法完成")
             # 提取位置信息
             pose_t, pose_r = common.mat_to_xyz_euler(world_pose)
             # self.get_logger().info(f"位置计算完成: {pose_t}")
             
-            return pose_t
+            return pose_t            # 返回物体在世界坐标系中的位置
         except Exception as e:
             # self.get_logger().error(f"位置计算错误: {str(e)}")
             import traceback
@@ -637,10 +707,42 @@ class ObjectClassificationNode(Node):
     def color_comparison(self, rgb):
         if rgb[0] > rgb[1] and rgb[0] > rgb[2]:
             return 'red'
-        elif rgb[2] > rgb[1] and rgb[2] > rgb[1]:
+        # elif rgb[2] > rgb[1] and rgb[2] > rgb[1]:
+        elif rgb[2] > rgb[1] and rgb[2] > rgb[0]:
+
             return 'blue'
         else:
             return None
+
+
+    # def detect_blue_center(self, rgb_image):
+    #     """Detect blue area center using LAB color range.
+
+    #     Args:
+    #         rgb_image (np.ndarray): image in BGR order.
+
+    #     Returns:
+    #         tuple[int, int] | None: center coordinates or ``None`` if not found.
+    #     """
+    #     try:
+    #         color = self.lab_data['lab']['Stereo']['blue']
+    #         img_blur = cv2.GaussianBlur(rgb_image, (3, 3), 3)
+    #         img_lab = cv2.cvtColor(img_blur, cv2.COLOR_BGR2LAB)
+    #         mask = cv2.inRange(img_lab, tuple(color['min']), tuple(color['max']))
+
+    #         eroded = cv2.erode(mask, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
+    #         dilated = cv2.dilate(eroded, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
+
+    #         contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    #         if not contours:
+    #             return None
+    #         max_contour = max(contours, key=cv2.contourArea)
+    #         if abs(cv2.contourArea(max_contour)) < 50:
+    #             return None
+    #         (cx, cy), _ = cv2.minEnclosingCircle(max_contour)
+    #         return int(cx), int(cy)
+    #     except Exception:
+    #         return None
 
     def main(self):
         count = 0
@@ -725,7 +827,37 @@ class ObjectClassificationNode(Node):
                             # self.get_logger().info("进入形状识别流程")
                             
                             object_info_list = self.shape_recognition(rgb_image, depth_image, depth_color_map, depth_camera_info.k, min_dist)
-                            
+
+                            # if self.shapes is None and self.colors and 'blue' in self.colors:
+                            #     self.get_logger().info('Blue color detection active')
+                            #     center = self.detect_blue_center(rgb_image)
+                            #     if center is not None:
+                            #         cx, cy = center
+                            #         if 0 <= cy < depth_image.shape[0] and 0 <= cx < depth_image.shape[1]:
+                            #             depth_val = depth_image[int(cy), int(cx)]
+                            #             position = self.cal_position(cx, cy, depth_val, depth_camera_info.k)
+                            #             if position is not None:
+                            #                 e_distance = round(math.sqrt(pow(self.last_position[0] - position[0], 2) +
+                            #                                             pow(self.last_position[1] - position[1], 2)), 5)
+                            #                 if e_distance <= 0.005:
+                            #                     self.count += 1
+                            #                 else:
+                            #                     self.count = 0
+                            #                 if self.count > 5:
+                            #                     self.get_logger().info('Blue target stable, executing move')
+                            #                     self.count = 0
+                            #                     self.moving = True
+                            #                     obejct_info = ['cuboid', position, depth_val,
+                            #                                    [0, 0, 0, 0, (cx, cy), 0, 0],
+                            #                                    rgb_image[int(cy), int(cx)], 0]
+                            #                     threading.Thread(target=self.move, args=(obejct_info,)).start()
+                            #                 self.last_position = position
+                            #     object_info_list = []
+                            # else:
+                            #     # 添加日志，显示进入形状识别
+                            #     # self.get_logger().info("进入形状识别流程")
+
+                            #     object_info_list = self.shape_recognition(rgb_image, depth_image, depth_color_map, depth_camera_info.k, min_dist)
                             # 添加日志，显示识别结果
                             # self.get_logger().info(f"形状识别完成，识别到 {len(object_info_list) if object_info_list else 0} 个物体")
                             
