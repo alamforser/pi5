@@ -86,13 +86,11 @@ class ObjectClassificationNode(Node):
             self.start = False
             self.shapes = None
             self.colors = None
-            self.target_color = "blue"
             self.target_shapes = ''
-            self.roi = [70, 350, 120, 520]  #self.roi = [y_min, y_max, x_min, x_max]  相机水平的参数
+            # self.roi = [70, 250, 120, 520]  #self.roi = [y_min, y_max, x_min, x_max]  相机水平的参数
             # self.roi = [160, 315, 120, 520]  # ROI区域: [y_min, y_max, x_min, x_max] 之前版本
             # self.roi = [150, 330, 120, 520]  # ROI区域: [y_min, y_max, x_min, x_max]
-
-            self.object_roi = None
+            self.roi = [70, 320, 120, 520]#相机倾斜参数
 
 
             self.endpoint = None
@@ -156,7 +154,6 @@ class ObjectClassificationNode(Node):
             
             # print("准备创建定时器")
             self.timer = self.create_timer(0.0, self.init_process, callback_group=timer_cb_group)
-            
         except Exception as e:
             # print(f"初始化过程中出错: {str(e)}")
             import traceback
@@ -217,9 +214,6 @@ class ObjectClassificationNode(Node):
         self.get_logger().info('\033[1;32m%s\033[0m' % "set_color")
         self.shapes = None
         self.colors = request.data
-        if request.data:
-            self.target_color = request.data[0]
-            self.get_logger().info(f"Current target color: {self.target_color}")
         self.start = True
         response.success = True
         response.message = "set_color"
@@ -263,69 +257,6 @@ class ObjectClassificationNode(Node):
         set_servo_position(self.joints_pub, 1, ((1, 500), (2, 700), (3, 86), (4, 70), (5, 500), (10, 600)))  #相机倾斜
         self.endpoint = common.xyz_quat_to_mat([pose_t.x, pose_t.y, pose_t.z], [pose_r.w, pose_r.x, pose_r.y, pose_r.z])
 
-    def proc(self, source_image, result_image, color_ranges):
-        h, w = source_image.shape[:2]
-        color = color_ranges['lab']['Stereo'][self.target_color]
-
-        img = cv2.resize(source_image, (int(w/2), int(h/2)))
-        img_blur = cv2.GaussianBlur(img, (3, 3), 3) # 高斯模糊(Gaussian blur)
-        img_lab = cv2.cvtColor(img_blur, cv2.COLOR_BGR2LAB) # 转换到 LAB 空间(convert to the LAB space)
-        mask = cv2.inRange(img_lab, tuple(color['min']), tuple(color['max'])) # 二值化(binarization)
-
-        # 平滑边缘，去除小块，合并靠近的块(smooth the edges, remove small patches, and merge adjacent patches)
-        eroded = cv2.erode(mask, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
-        dilated = cv2.dilate(eroded, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
-        print(f"腐蚀后非零像素数: {np.count_nonzero(eroded)}, 膨胀后非零像素数: {np.count_nonzero(dilated)}")
-        
-        # 找出最大轮廓(find out the contour with the maximal area)
-        contours = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[-2]
-        print(f"找到轮廓数量: {len(contours)}")
-        
-        min_c = None
-        for i, c in enumerate(contours):
-            area = math.fabs(cv2.contourArea(c))
-            print(f"轮廓 {i} 面积: {area}")
-            if area < 50:
-                print(f"轮廓 {i} 面积小于50，跳过")
-                continue
-            (center_x, center_y), radius = cv2.minEnclosingCircle(c) # 最小外接圆(the minimum circumcircle)
-            print(f"轮廓 {i} 中心点: ({center_x}, {center_y}), 半径: {radius}")
-            if min_c is None:
-                min_c = (c, center_x)
-                print(f"设置初始最左轮廓: 轮廓 {i}")
-            elif center_x < min_c[1]:
-                if center_x < min_c[1]:
-                    min_c = (c, center_x)
-                    print(f"更新最左轮廓: 轮廓 {i}")
-
-        # 如果有符合要求的轮廓(if there are contours that meet the requirements)
-        if min_c is not None:
-            (center_x, center_y), radius = cv2.minEnclosingCircle(min_c[0]) # 最小外接圆(the minimum circumcircle)
-
-            # 圈出识别的的要追踪的色块(encircle the recognized color block to be tracked)
-            circle_color = common.range_rgb[self.target_color] if self.target_color in common.range_rgb else (0x55, 0x55, 0x55)
-            cv2.circle(result_image, (int(center_x * 2), int(center_y * 2)), int(radius * 2), circle_color, 2)
-
-            center_x = center_x * 2
-            # center_x_1 = center_x / w
-            # if abs(center_x_1 - 0.5) > 0.02:  # 相差范围小于一定值就不用再动了(stop moving if the difference range is less than a certain value)
-            #     self.pid_yaw.SetPoint = 0.5  # 我们的目标是要让色块在画面的中心, 就是整个画面的像素宽度的 1/2 位置(our goal is to position the color block at the center of the frame, which is at the halfway point of the entire pixel width of the frame)
-            #     self.pid_yaw.update(center_x_1)
-            #     self.yaw = min(max(self.yaw + self.pid_yaw.output, 0), 1000)
-            # else:
-            #     self.pid_yaw.clear() # 如果已经到达中心了就复位一下 pid 控制器(if it has already reached the center, reset the PID controller)
-
-            center_y = center_y * 2
-            # center_y_1 = center_y / h
-            # if abs(center_y_1 - 0.5) > 0.02:
-            #     self.pid_pitch.SetPoint = 0.5
-            #     self.pid_pitch.update(center_y_1)
-            #     self.pitch = min(max(self.pitch + self.pid_pitch.output, 100), 720)
-            # else:
-            #     self.pid_pitch.clear()
-            return (result_image, (center_x, center_y), radius * 2)
-        else:
-            return (result_image, None, 0)
 
     def move(self, obejct_info):
         shape, pose_t = obejct_info[:2] # 获取前两个元素：物体形状和位置坐标
@@ -431,7 +362,8 @@ class ObjectClassificationNode(Node):
             if "cuboid" in shape:
                 self.controller.run_action("target_3")
         else:
-            # color = self.color_comparison(color)
+            color = self.color_comparison(color)
+            # self.get_logger().info('color: %s' % color)
             if "red" == color:
                 self.controller.run_action("target_1")
             if "blue" == color:
@@ -505,45 +437,6 @@ class ObjectClassificationNode(Node):
         min_dist = depth_image[min_y, min_x]  # 获取距离摄像头最近的物体的距离(get the distance of the object that is closest to the camera)
         return min_dist
 
-    def get_color_contours(self, rgb_img):
-        """根据 LAB 颜色阈值提取轮廓，返回 [(contour, color_name), …]"""
-        blur = cv2.GaussianBlur(rgb_img, (3, 3), 3)
-        lab_img = cv2.cvtColor(blur, cv2.COLOR_BGR2LAB)
-
-        mask_total = np.zeros(lab_img.shape[:2], dtype=np.uint8)
-        # 要检测哪些颜色？self.colors 若为空就取配置里全部
-        target_colors = self.colors or self.lab_data["lab"]["Stereo"].keys()
-        for cname in target_colors:
-            c_range = self.lab_data["lab"]["Stereo"][cname]
-            cmin, cmax = np.array(c_range["min"]), np.array(c_range["max"])
-            mask = cv2.inRange(lab_img, cmin, cmax)
-            mask_total = cv2.bitwise_or(mask_total, mask)
-
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        mask_total = cv2.erode(mask_total, kernel)
-        mask_total = cv2.dilate(mask_total, kernel)
-
-        contours, _ = cv2.findContours(mask_total, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-
-        # 轮廓 → 颜色名（用平均 LAB 最近距离）
-        results = []
-        for c in contours:
-            if cv2.contourArea(c) < 300:      # 面积门限自己调
-                continue
-            mask = np.zeros(mask_total.shape, dtype=np.uint8)
-            cv2.drawContours(mask, [c], -1, 255, -1)
-            mean_lab = cv2.mean(lab_img, mask)[0:3]
-
-            best, dist = None, 1e9
-            for cname, rng in self.lab_data["lab"]["Stereo"].items():
-                center = (np.array(rng["min"]) + np.array(rng["max"])) / 2
-                d = np.linalg.norm(mean_lab - center)
-                if d < dist:
-                    best, dist = cname, d
-            results.append((c, best))
-        return results
-
-
     def get_contours(self, depth_image, min_dist):
         try:
             # 检查self.plane_distance是否为None
@@ -585,8 +478,7 @@ class ObjectClassificationNode(Node):
         # self.get_logger().info(f"开始形状识别，最小距离: {min_dist}")
         object_info_list = []
         image_height, image_width = depth_image.shape[:2]
-        # if min_dist <= 300:  # 大于这个值说明已经低于地面了，可能检测有误
-        if True:
+        if min_dist <= 300:  # 大于这个值说明已经低于地面了，可能检测有误
             # self.get_logger().info("最小距离在有效范围内，继续处理")
             sphere_index = 0
             cuboid_index = 0
@@ -594,17 +486,10 @@ class ObjectClassificationNode(Node):
             cylinder_horizontal_index = 0
             
             # self.get_logger().info("准备获取轮廓")
-            # contours = self.get_contours(depth_image, min_dist)
-            contours_with_color = self.get_color_contours(rgb_image)
-            if not contours_with_color:
-                return []
-
+            contours = self.get_contours(depth_image, min_dist)
             # self.get_logger().info(f"获取到{len(contours)}个轮廓")
             
-            # for i, obj in enumerate(contours):
-            # for obj, color_name in contours_with_color:
-            # for i, (obj, color_name) in enumerate(contours_with_color):
-            for i, (obj, detected_color) in enumerate(contours_with_color):
+            for i, obj in enumerate(contours):
                 # self.get_logger().info(f"处理轮廓 {i+1}/{len(contours)}")
                 area = cv2.contourArea(obj)
                 # self.get_logger().info(f"轮廓面积: {area}")
@@ -626,10 +511,6 @@ class ObjectClassificationNode(Node):
                 # 获取最小包围圆
                 (cx, cy), r = cv2.minEnclosingCircle(obj)
                 # self.get_logger().info(f"物体中心点: ({cx}, {cy}), 半径: {r}")
-                # 在深度伪彩图上绘制包围圆，便于调试查看
-                cv2.circle(depth_color_map, (int(cx), int(cy)), int(r), (0, 255, 0), 2)
-                self.get_logger().info(
-                    f"包围圆中心=({cx:.2f}, {cy:.2f}), 半径={r:.2f}")
                 
                 # 获取最小包围矩形
                 center, (width, height), angle = cv2.minAreaRect(obj)
@@ -716,8 +597,7 @@ class ObjectClassificationNode(Node):
                     
                     # 获取物体颜色
                     rgb_value = rgb_image[int(center[1]), int(center[0])]
-                    # color_name = self.color_comparison(rgb_value)
-                    color_name = detected_color
+                    color_name = self.color_comparison(rgb_value)
                     
                     # 增加打印物体位置、深度信息和颜色信息
                     # self.get_logger().info(f"识别到物体: 类型={objType}, 位置坐标=({position[0]:.4f}, {position[1]:.4f}, {position[2]:.4f}), 深度={depth:.4f}mm, RGB值={rgb_value}, 颜色={color_name if color_name else '未知'}")
@@ -736,8 +616,7 @@ class ObjectClassificationNode(Node):
                         
                         # 计算文本位置，使其位于右下角
                         text_x = w - text_size[0] - 10
-                        # text_y = h - 10 - (len(contours) - i - 1) * 30
-                        text_y = h - 10 - (len(contours_with_color) - i - 1) * 30
+                        text_y = h - 10 - (len(contours) - i - 1) * 30
                         
                         cv2.putText(depth_color_map, info_text, 
                                    (text_x, text_y), 
@@ -754,11 +633,8 @@ class ObjectClassificationNode(Node):
                                    (int(center[0]), int(center[1])), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
                         
-                        # object_info_list.append([objType, position, depth, [x, y, w, h, center, width, height], rgb_value, angle])
-                        object_info_list.append([objType, position, depth, [x, y, w, h, center, width, height, (cx, cy), r], rgb_value, color_name, angle])
-
+                        object_info_list.append([objType, position, depth, [x, y, w, h, center, width, height], rgb_value, angle])
                         # self.get_logger().info(f"已添加到物体列表，当前列表长度: {len(object_info_list)}")
-
                         
                 except Exception as e:
                     self.get_logger().error(f"处理物体时出错: {str(e)}")
@@ -817,33 +693,6 @@ class ObjectClassificationNode(Node):
                     # 详细打印图像尺寸
                     # self.get_logger().info(f"RGB图像尺寸: 高={rgb_image.shape[0]}, 宽={rgb_image.shape[1]}, 通道={rgb_image.shape[2]}")
                     # self.get_logger().info(f"深度图像尺寸: 高={depth_image.shape[0]}, 宽={depth_image.shape[1]}")
-
-
-
-                    # 先在RGB图像上进行颜色区域检测，更新ROI
-                    result_image = bgr_image.copy()
-                    try:
-                        result_image, center, diameter = self.proc(bgr_image, result_image, self.lab_data)
-                        if center is not None:
-                            h, w = bgr_image.shape[:2]
-                            roi_size = int(diameter / 4) if diameter > 20 else 10
-                            roi = [max(int(center[1]) - roi_size, 0), min(int(center[1]) + roi_size, h),
-                                   max(int(center[0]) - roi_size, 0), min(int(center[0]) + roi_size, w)]
-                            self.get_logger().info(f"ROI区域: 行={roi[0]}:{roi[1]}, 列={roi[2]}:{roi[3]}")
-
-                            roi_distance = depth_image[roi[0]:roi[1], roi[2]:roi[3]]
-                            valid_mask = np.logical_and(roi_distance > 0, roi_distance < 10000)
-                            if np.count_nonzero(valid_mask) > 0:
-                                dist = round(float(np.mean(roi_distance[valid_mask])) / 1000.0, 3)
-                                self.get_logger().info(f"目标距离: {dist} 米")
-                                # self.roi = roi
-                                self.object_roi = roi
-                            else:
-                                self.get_logger().info('ROI区域内没有有效深度值!')
-                        else:
-                            self.get_logger().info('未检测到目标颜色块')
-                    except Exception as e:
-                        self.get_logger().error(f'颜色处理出错: {e}')
                     
                     # cv2.imshow('rgb', cv2.applyColorMap(depth_image.astype(np.uint8), cv2.COLORMAP_JET))
                     depth_image = depth_image.copy()
@@ -928,8 +777,7 @@ class ObjectClassificationNode(Node):
                                             indices = [i for i, info in enumerate(reorder_object_info_list) if info[0].split('_')[0] in self.shapes]
                                             # self.get_logger().info(f"基于形状过滤，符合条件的索引: {indices}")
                                         else:
-                                            # indices = [i for i, info in enumerate(reorder_object_info_list) if self.color_comparison(info[-2]) in self.colors]
-                                            indices = [i for i, info in enumerate(reorder_object_info_list) if info[-2] in self.colors]
+                                            indices = [i for i, info in enumerate(reorder_object_info_list) if self.color_comparison(info[-2]) in self.colors]
                                             # self.get_logger().info(f"基于颜色过滤，符合条件的索引: {indices}")
                                         
                                         if indices:
@@ -947,9 +795,7 @@ class ObjectClassificationNode(Node):
                                         if target_index:
                                             target_index = target_index[0]
                                             obejct_info = reorder_object_info_list[target_index]
-                                            # x, y, w, h, center, width, height = obejct_info[3]
-                                            x, y, w, h, center, width, height, circle_center, circle_r = obejct_info[3]
-
+                                            x, y, w, h, center, width, height = obejct_info[3]
                                             angle = obejct_info[-1]
                                             
                                             # 添加日志，显示物体信息
