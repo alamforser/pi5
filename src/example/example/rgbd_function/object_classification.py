@@ -626,6 +626,10 @@ class ObjectClassificationNode(Node):
                 # 获取最小包围圆
                 (cx, cy), r = cv2.minEnclosingCircle(obj)
                 # self.get_logger().info(f"物体中心点: ({cx}, {cy}), 半径: {r}")
+                # 在深度伪彩图上绘制包围圆，便于调试查看
+                cv2.circle(depth_color_map, (int(cx), int(cy)), int(r), (0, 255, 0), 2)
+                self.get_logger().info(
+                    f"包围圆中心=({cx:.2f}, {cy:.2f}), 半径={r:.2f}")
                 
                 # 获取最小包围矩形
                 center, (width, height), angle = cv2.minAreaRect(obj)
@@ -749,8 +753,11 @@ class ObjectClassificationNode(Node):
                                    (int(center[0]), int(center[1])), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
                         
-                        object_info_list.append([objType, position, depth, [x, y, w, h, center, width, height], rgb_value, angle])
+                        # object_info_list.append([objType, position, depth, [x, y, w, h, center, width, height], rgb_value, angle])
+                        object_info_list.append([objType, position, depth, [x, y, w, h, center, width, height, (cx, cy), r], rgb_value, angle])
+
                         # self.get_logger().info(f"已添加到物体列表，当前列表长度: {len(object_info_list)}")
+
                         
                 except Exception as e:
                     self.get_logger().error(f"处理物体时出错: {str(e)}")
@@ -938,7 +945,9 @@ class ObjectClassificationNode(Node):
                                         if target_index:
                                             target_index = target_index[0]
                                             obejct_info = reorder_object_info_list[target_index]
-                                            x, y, w, h, center, width, height = obejct_info[3]
+                                            # x, y, w, h, center, width, height = obejct_info[3]
+                                            x, y, w, h, center, width, height, circle_center, circle_r = obejct_info[3]
+
                                             angle = obejct_info[-1]
                                             
                                             # 添加日志，显示物体信息
