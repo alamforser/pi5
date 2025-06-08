@@ -300,23 +300,23 @@ class ObjectClassificationNode(Node):
             cv2.circle(result_image, (int(center_x * 2), int(center_y * 2)), int(radius * 2), circle_color, 2)
 
             center_x = center_x * 2
-            center_x_1 = center_x / w
-            if abs(center_x_1 - 0.5) > 0.02:  # 相差范围小于一定值就不用再动了(stop moving if the difference range is less than a certain value)
-                self.pid_yaw.SetPoint = 0.5  # 我们的目标是要让色块在画面的中心, 就是整个画面的像素宽度的 1/2 位置(our goal is to position the color block at the center of the frame, which is at the halfway point of the entire pixel width of the frame)
-                self.pid_yaw.update(center_x_1)
-                self.yaw = min(max(self.yaw + self.pid_yaw.output, 0), 1000)
-            else:
-                self.pid_yaw.clear() # 如果已经到达中心了就复位一下 pid 控制器(if it has already reached the center, reset the PID controller)
+            # center_x_1 = center_x / w
+            # if abs(center_x_1 - 0.5) > 0.02:  # 相差范围小于一定值就不用再动了(stop moving if the difference range is less than a certain value)
+            #     self.pid_yaw.SetPoint = 0.5  # 我们的目标是要让色块在画面的中心, 就是整个画面的像素宽度的 1/2 位置(our goal is to position the color block at the center of the frame, which is at the halfway point of the entire pixel width of the frame)
+            #     self.pid_yaw.update(center_x_1)
+            #     self.yaw = min(max(self.yaw + self.pid_yaw.output, 0), 1000)
+            # else:
+            #     self.pid_yaw.clear() # 如果已经到达中心了就复位一下 pid 控制器(if it has already reached the center, reset the PID controller)
 
             center_y = center_y * 2
-            center_y_1 = center_y / h
-            if abs(center_y_1 - 0.5) > 0.02:
-                self.pid_pitch.SetPoint = 0.5
-                self.pid_pitch.update(center_y_1)
-                self.pitch = min(max(self.pitch + self.pid_pitch.output, 100), 720)
-            else:
-                self.pid_pitch.clear()
-            return (result_image, (self.pitch, self.yaw), (center_x, center_y), radius * 2)
+            # center_y_1 = center_y / h
+            # if abs(center_y_1 - 0.5) > 0.02:
+            #     self.pid_pitch.SetPoint = 0.5
+            #     self.pid_pitch.update(center_y_1)
+            #     self.pitch = min(max(self.pitch + self.pid_pitch.output, 100), 720)
+            # else:
+            #     self.pid_pitch.clear()
+            return (result_image, (center_x, center_y), radius * 2)
         else:
             return (result_image, None, None, 0)
 
@@ -499,6 +499,45 @@ class ObjectClassificationNode(Node):
         min_dist = depth_image[min_y, min_x]  # 获取距离摄像头最近的物体的距离(get the distance of the object that is closest to the camera)
         return min_dist
 
+    def get_color_contours(self, rgb_img):
+        """根据 LAB 颜色阈值提取轮廓，返回 [(contour, color_name), …]"""
+        blur = cv2.GaussianBlur(rgb_img, (3, 3), 3)
+        lab_img = cv2.cvtColor(blur, cv2.COLOR_BGR2LAB)
+
+        mask_total = np.zeros(lab_img.shape[:2], dtype=np.uint8)
+        # 要检测哪些颜色？self.colors 若为空就取配置里全部
+        target_colors = self.colors or self.lab_data["lab"]["Stereo"].keys()
+        for cname in target_colors:
+            c_range = self.lab_data["lab"]["Stereo"][cname]
+            cmin, cmax = np.array(c_range["min"]), np.array(c_range["max"])
+            mask = cv2.inRange(lab_img, cmin, cmax)
+            mask_total = cv2.bitwise_or(mask_total, mask)
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+        mask_total = cv2.erode(mask_total, kernel)
+        mask_total = cv2.dilate(mask_total, kernel)
+
+        contours, _ = cv2.findContours(mask_total, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+        # 轮廓 → 颜色名（用平均 LAB 最近距离）
+        results = []
+        for c in contours:
+            if cv2.contourArea(c) < 300:      # 面积门限自己调
+                continue
+            mask = np.zeros(mask_total.shape, dtype=np.uint8)
+            cv2.drawContours(mask, [c], -1, 255, -1)
+            mean_lab = cv2.mean(lab_img, mask)[0:3]
+
+            best, dist = None, 1e9
+            for cname, rng in self.lab_data["lab"]["Stereo"].items():
+                center = (np.array(rng["min"]) + np.array(rng["max"])) / 2
+                d = np.linalg.norm(mean_lab - center)
+                if d < dist:
+                    best, dist = cname, d
+            results.append((c, best))
+        return results
+
+
     def get_contours(self, depth_image, min_dist):
         try:
             # 检查self.plane_distance是否为None
@@ -540,7 +579,8 @@ class ObjectClassificationNode(Node):
         # self.get_logger().info(f"开始形状识别，最小距离: {min_dist}")
         object_info_list = []
         image_height, image_width = depth_image.shape[:2]
-        if min_dist <= 300:  # 大于这个值说明已经低于地面了，可能检测有误
+        # if min_dist <= 300:  # 大于这个值说明已经低于地面了，可能检测有误
+        if True:
             # self.get_logger().info("最小距离在有效范围内，继续处理")
             sphere_index = 0
             cuboid_index = 0
@@ -548,10 +588,15 @@ class ObjectClassificationNode(Node):
             cylinder_horizontal_index = 0
             
             # self.get_logger().info("准备获取轮廓")
-            contours = self.get_contours(depth_image, min_dist)
+            # contours = self.get_contours(depth_image, min_dist)
+            contours_with_color = self.get_color_contours(rgb_image)
+            if not contours_with_color:
+                return []
+
             # self.get_logger().info(f"获取到{len(contours)}个轮廓")
             
-            for i, obj in enumerate(contours):
+            # for i, obj in enumerate(contours):
+            for obj, color_name in contours_with_color:
                 # self.get_logger().info(f"处理轮廓 {i+1}/{len(contours)}")
                 area = cv2.contourArea(obj)
                 # self.get_logger().info(f"轮廓面积: {area}")
@@ -718,6 +763,7 @@ class ObjectClassificationNode(Node):
             return 'blue'
         else:
             return None
+
 
 
     def main(self):
