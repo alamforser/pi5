@@ -431,8 +431,7 @@ class ObjectClassificationNode(Node):
             if "cuboid" in shape:
                 self.controller.run_action("target_3")
         else:
-            color = self.color_comparison(color)
-            # self.get_logger().info('color: %s' % color)
+            # color = self.color_comparison(color)
             if "red" == color:
                 self.controller.run_action("target_1")
             if "blue" == color:
@@ -604,7 +603,8 @@ class ObjectClassificationNode(Node):
             
             # for i, obj in enumerate(contours):
             # for obj, color_name in contours_with_color:
-            for i, (obj, color_name) in enumerate(contours_with_color):
+            # for i, (obj, color_name) in enumerate(contours_with_color):
+            for i, (obj, detected_color) in enumerate(contours_with_color):
                 # self.get_logger().info(f"处理轮廓 {i+1}/{len(contours)}")
                 area = cv2.contourArea(obj)
                 # self.get_logger().info(f"轮廓面积: {area}")
@@ -716,7 +716,8 @@ class ObjectClassificationNode(Node):
                     
                     # 获取物体颜色
                     rgb_value = rgb_image[int(center[1]), int(center[0])]
-                    color_name = self.color_comparison(rgb_value)
+                    # color_name = self.color_comparison(rgb_value)
+                    color_name = detected_color
                     
                     # 增加打印物体位置、深度信息和颜色信息
                     # self.get_logger().info(f"识别到物体: 类型={objType}, 位置坐标=({position[0]:.4f}, {position[1]:.4f}, {position[2]:.4f}), 深度={depth:.4f}mm, RGB值={rgb_value}, 颜色={color_name if color_name else '未知'}")
@@ -754,7 +755,7 @@ class ObjectClassificationNode(Node):
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
                         
                         # object_info_list.append([objType, position, depth, [x, y, w, h, center, width, height], rgb_value, angle])
-                        object_info_list.append([objType, position, depth, [x, y, w, h, center, width, height, (cx, cy), r], rgb_value, angle])
+                        object_info_list.append([objType, position, depth, [x, y, w, h, center, width, height, (cx, cy), r], rgb_value, color_name, angle])
 
                         # self.get_logger().info(f"已添加到物体列表，当前列表长度: {len(object_info_list)}")
 
@@ -927,7 +928,8 @@ class ObjectClassificationNode(Node):
                                             indices = [i for i, info in enumerate(reorder_object_info_list) if info[0].split('_')[0] in self.shapes]
                                             # self.get_logger().info(f"基于形状过滤，符合条件的索引: {indices}")
                                         else:
-                                            indices = [i for i, info in enumerate(reorder_object_info_list) if self.color_comparison(info[-2]) in self.colors]
+                                            # indices = [i for i, info in enumerate(reorder_object_info_list) if self.color_comparison(info[-2]) in self.colors]
+                                            indices = [i for i, info in enumerate(reorder_object_info_list) if info[-2] in self.colors]
                                             # self.get_logger().info(f"基于颜色过滤，符合条件的索引: {indices}")
                                         
                                         if indices:
