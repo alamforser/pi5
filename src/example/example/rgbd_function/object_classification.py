@@ -596,7 +596,8 @@ class ObjectClassificationNode(Node):
             # self.get_logger().info(f"获取到{len(contours)}个轮廓")
             
             # for i, obj in enumerate(contours):
-            for obj, color_name in contours_with_color:
+            # for obj, color_name in contours_with_color:
+            for i, (obj, color_name) in enumerate(contours_with_color):
                 # self.get_logger().info(f"处理轮廓 {i+1}/{len(contours)}")
                 area = cv2.contourArea(obj)
                 # self.get_logger().info(f"轮廓面积: {area}")
@@ -723,7 +724,8 @@ class ObjectClassificationNode(Node):
                         
                         # 计算文本位置，使其位于右下角
                         text_x = w - text_size[0] - 10
-                        text_y = h - 10 - (len(contours) - i - 1) * 30
+                        # text_y = h - 10 - (len(contours) - i - 1) * 30
+                        text_y = h - 10 - (len(contours_with_color) - i - 1) * 30
                         
                         cv2.putText(depth_color_map, info_text, 
                                    (text_x, text_y), 
