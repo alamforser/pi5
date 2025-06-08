@@ -86,8 +86,9 @@ class ObjectClassificationNode(Node):
             self.start = False
             self.shapes = None
             self.colors = None
+            self.target_color = "blue"
             self.target_shapes = ''
-            self.roi = [70, 250, 120, 520]  #self.roi = [y_min, y_max, x_min, x_max]  相机水平的参数
+            self.roi = [70, 350, 120, 520]  #self.roi = [y_min, y_max, x_min, x_max]  相机水平的参数
             # self.roi = [160, 315, 120, 520]  # ROI区域: [y_min, y_max, x_min, x_max] 之前版本
             # self.roi = [150, 330, 120, 520]  # ROI区域: [y_min, y_max, x_min, x_max]
 
@@ -153,6 +154,7 @@ class ObjectClassificationNode(Node):
             
             # print("准备创建定时器")
             self.timer = self.create_timer(0.0, self.init_process, callback_group=timer_cb_group)
+            
         except Exception as e:
             # print(f"初始化过程中出错: {str(e)}")
             import traceback
@@ -213,6 +215,9 @@ class ObjectClassificationNode(Node):
         self.get_logger().info('\033[1;32m%s\033[0m' % "set_color")
         self.shapes = None
         self.colors = request.data
+        if request.data:
+            self.target_color = request.data[0]
+            self.get_logger().info(f"Current target color: {self.target_color}")
         self.start = True
         response.success = True
         response.message = "set_color"
