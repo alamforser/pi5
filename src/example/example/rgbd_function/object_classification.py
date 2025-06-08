@@ -92,6 +92,8 @@ class ObjectClassificationNode(Node):
             # self.roi = [160, 315, 120, 520]  # ROI区域: [y_min, y_max, x_min, x_max] 之前版本
             # self.roi = [150, 330, 120, 520]  # ROI区域: [y_min, y_max, x_min, x_max]
 
+            self.object_roi = None
+
 
             self.endpoint = None
             self.last_position = 0, 0
@@ -826,7 +828,8 @@ class ObjectClassificationNode(Node):
                             if np.count_nonzero(valid_mask) > 0:
                                 dist = round(float(np.mean(roi_distance[valid_mask])) / 1000.0, 3)
                                 self.get_logger().info(f"目标距离: {dist} 米")
-                                self.roi = roi
+                                # self.roi = roi
+                                self.object_roi = roi
                             else:
                                 self.get_logger().info('ROI区域内没有有效深度值!')
                         else:
