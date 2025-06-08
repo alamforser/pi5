@@ -318,7 +318,7 @@ class ObjectClassificationNode(Node):
             #     self.pid_pitch.clear()
             return (result_image, (center_x, center_y), radius * 2)
         else:
-            return (result_image, None, None, 0)
+            return (result_image, None, 0)
 
     def move(self, obejct_info):
         shape, pose_t = obejct_info[:2] # 获取前两个元素：物体形状和位置坐标
@@ -800,6 +800,32 @@ class ObjectClassificationNode(Node):
                     # 详细打印图像尺寸
                     # self.get_logger().info(f"RGB图像尺寸: 高={rgb_image.shape[0]}, 宽={rgb_image.shape[1]}, 通道={rgb_image.shape[2]}")
                     # self.get_logger().info(f"深度图像尺寸: 高={depth_image.shape[0]}, 宽={depth_image.shape[1]}")
+
+
+
+                    # 先在RGB图像上进行颜色区域检测，更新ROI
+                    result_image = bgr_image.copy()
+                    try:
+                        result_image, center, diameter = self.proc(bgr_image, result_image, self.lab_data)
+                        if center is not None:
+                            h, w = bgr_image.shape[:2]
+                            roi_size = int(diameter / 4) if diameter > 20 else 10
+                            roi = [max(int(center[1]) - roi_size, 0), min(int(center[1]) + roi_size, h),
+                                   max(int(center[0]) - roi_size, 0), min(int(center[0]) + roi_size, w)]
+                            self.get_logger().info(f"ROI区域: 行={roi[0]}:{roi[1]}, 列={roi[2]}:{roi[3]}")
+
+                            roi_distance = depth_image[roi[0]:roi[1], roi[2]:roi[3]]
+                            valid_mask = np.logical_and(roi_distance > 0, roi_distance < 10000)
+                            if np.count_nonzero(valid_mask) > 0:
+                                dist = round(float(np.mean(roi_distance[valid_mask])) / 1000.0, 3)
+                                self.get_logger().info(f"目标距离: {dist} 米")
+                                self.roi = roi
+                            else:
+                                self.get_logger().info('ROI区域内没有有效深度值!')
+                        else:
+                            self.get_logger().info('未检测到目标颜色块')
+                    except Exception as e:
+                        self.get_logger().error(f'颜色处理出错: {e}')
                     
                     # cv2.imshow('rgb', cv2.applyColorMap(depth_image.astype(np.uint8), cv2.COLORMAP_JET))
                     depth_image = depth_image.copy()
