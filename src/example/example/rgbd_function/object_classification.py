@@ -623,8 +623,13 @@ class ObjectClassificationNode(Node):
                     
                     # 计算深度标准差
                     depth_image_mask = np.where(depth_image == 0, np.nan, depth_image)
-                    depth_std = np.nanstd(mask)
-                    self.get_logger().info(f"深度标准差: {depth_std}")
+                    # depth_std = np.nanstd(mask)
+                    # self.get_logger().info(f"深度标准差: {depth_std}")
+                    depth_vals = depth_image_mask[mask == 255]
+                    if depth_vals.size:
+                        depth_std = np.nanstd(depth_vals)
+                    else:
+                        depth_std = 0.0                   
                     
                     # 根据深度标准差和角点数量判断形状
                     objType = None
@@ -715,35 +720,6 @@ class ObjectClassificationNode(Node):
             return None
 
 
-    # def detect_blue_center(self, rgb_image):
-    #     """Detect blue area center using LAB color range.
-
-    #     Args:
-    #         rgb_image (np.ndarray): image in BGR order.
-
-    #     Returns:
-    #         tuple[int, int] | None: center coordinates or ``None`` if not found.
-    #     """
-    #     try:
-    #         color = self.lab_data['lab']['Stereo']['blue']
-    #         img_blur = cv2.GaussianBlur(rgb_image, (3, 3), 3)
-    #         img_lab = cv2.cvtColor(img_blur, cv2.COLOR_BGR2LAB)
-    #         mask = cv2.inRange(img_lab, tuple(color['min']), tuple(color['max']))
-
-    #         eroded = cv2.erode(mask, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
-    #         dilated = cv2.dilate(eroded, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
-
-    #         contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    #         if not contours:
-    #             return None
-    #         max_contour = max(contours, key=cv2.contourArea)
-    #         if abs(cv2.contourArea(max_contour)) < 50:
-    #             return None
-    #         (cx, cy), _ = cv2.minEnclosingCircle(max_contour)
-    #         return int(cx), int(cy)
-    #     except Exception:
-    #         return None
-
     def main(self):
         count = 0
         while self.running:
@@ -828,41 +804,6 @@ class ObjectClassificationNode(Node):
                             
                             object_info_list = self.shape_recognition(rgb_image, depth_image, depth_color_map, depth_camera_info.k, min_dist)
 
-                            # if self.shapes is None and self.colors and 'blue' in self.colors:
-                            #     self.get_logger().info('Blue color detection active')
-                            #     center = self.detect_blue_center(rgb_image)
-                            #     if center is not None:
-                            #         cx, cy = center
-                            #         if 0 <= cy < depth_image.shape[0] and 0 <= cx < depth_image.shape[1]:
-                            #             depth_val = depth_image[int(cy), int(cx)]
-                            #             position = self.cal_position(cx, cy, depth_val, depth_camera_info.k)
-                            #             if position is not None:
-                            #                 e_distance = round(math.sqrt(pow(self.last_position[0] - position[0], 2) +
-                            #                                             pow(self.last_position[1] - position[1], 2)), 5)
-                            #                 if e_distance <= 0.005:
-                            #                     self.count += 1
-                            #                 else:
-                            #                     self.count = 0
-                            #                 if self.count > 5:
-                            #                     self.get_logger().info('Blue target stable, executing move')
-                            #                     self.count = 0
-                            #                     self.moving = True
-                            #                     obejct_info = ['cuboid', position, depth_val,
-                            #                                    [0, 0, 0, 0, (cx, cy), 0, 0],
-                            #                                    rgb_image[int(cy), int(cx)], 0]
-                            #                     threading.Thread(target=self.move, args=(obejct_info,)).start()
-                            #                 self.last_position = position
-                            #     object_info_list = []
-                            # else:
-                            #     # 添加日志，显示进入形状识别
-                            #     # self.get_logger().info("进入形状识别流程")
-
-                            #     object_info_list = self.shape_recognition(rgb_image, depth_image, depth_color_map, depth_camera_info.k, min_dist)
-                            # 添加日志，显示识别结果
-                            # self.get_logger().info(f"形状识别完成，识别到 {len(object_info_list) if object_info_list else 0} 个物体")
-                            
-                            # 添加日志，显示start状态
-                            # self.get_logger().info(f"检查self.start状态: {self.start}")
                             
                             if self.start:
                                 # 添加日志，显示进入start条件分支
