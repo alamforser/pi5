@@ -637,7 +637,7 @@ class ObjectClassificationNode(Node):
     def color_comparison(self, rgb):
         if rgb[0] > rgb[1] and rgb[0] > rgb[2]:
             return 'red'
-        elif rgb[2] > rgb[1] and rgb[2] > rgb[1]:
+        elif rgb[2] > rgb[1] and rgb[2] > rgb[0]:
             return 'blue'
         else:
             return None
