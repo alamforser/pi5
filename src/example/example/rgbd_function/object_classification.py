@@ -99,11 +99,6 @@ class ObjectClassificationNode(Node):
             signal.signal(signal.SIGINT, self.shutdown)
             
             self.image_queue = queue.Queue(maxsize=2)
-
-            # Camera tilt compensation parameters (degrees)
-            self.camera_roll_offset = -38.0  # adjust sign and axis as needed
-            self.camera_pitch_offset = 0.0
-            self.camera_yaw_offset = 0.0
             
             # print("准备获取参数")
             self.debug = self.get_parameter('debug').value
