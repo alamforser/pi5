@@ -99,6 +99,11 @@ class ObjectClassificationNode(Node):
             signal.signal(signal.SIGINT, self.shutdown)
             
             self.image_queue = queue.Queue(maxsize=2)
+
+            # Camera tilt compensation parameters (degrees)
+            self.camera_roll_offset = -38.0  # adjust sign and axis as needed
+            self.camera_pitch_offset = 0.0
+            self.camera_yaw_offset = 0.0
             
             # print("准备获取参数")
             self.debug = self.get_parameter('debug').value
@@ -380,44 +385,56 @@ class ObjectClassificationNode(Node):
         self.image_queue.put((ros_rgb_image, ros_depth_image, depth_camera_info))
 
     def cal_position(self, x, y, depth, intrinsic_matrix):
+        """Calculate 3D world coordinates taking camera tilt into account."""
         try:
-            # self.get_logger().info(f"开始计算位置: x={x}, y={y}, depth={depth}")
-            
-            # 检查输入参数
             if depth <= 0:
-                # self.get_logger().warning(f"无效深度值: {depth}")
                 return None
-            
-            # 检查intrinsic_matrix
-            # self.get_logger().info(f"相机内参矩阵: {intrinsic_matrix}")
-            
-            # 检查depth_pixel_to_camera函数输入
-            # self.get_logger().info(f"调用depth_pixel_to_camera，参数: {[x, y, depth / 1000]}")
-            # 步骤1：像素坐标转到相机坐标系
-            position = depth_pixel_to_camera([x, y, depth / 1000], intrinsic_matrix)
-            # self.get_logger().info(f"depth_pixel_to_camera返回: {position}")
-            
-            # 检查endpoint是否初始化
-            # self.get_logger().info(f"self.endpoint类型: {type(self.endpoint)}")
+
+            # 1. Pixel to camera coordinate (meters)
+            position = depth_pixel_to_camera([x, y, depth / 1000.0], intrinsic_matrix)
+
+            camera_position = np.array([position[0], position[1], position[2], 1])
+
+            # 2. Build rotation matrices from roll/pitch/yaw offsets
+            roll_rad = math.radians(self.camera_roll_offset)
+            pitch_rad = math.radians(self.camera_pitch_offset)
+            yaw_rad = math.radians(self.camera_yaw_offset)
+
+            rot_x = np.array([
+                [1, 0, 0],
+                [0, math.cos(roll_rad), -math.sin(roll_rad)],
+                [0, math.sin(roll_rad), math.cos(roll_rad)]
+            ])
+            rot_y = np.array([
+                [math.cos(pitch_rad), 0, math.sin(pitch_rad)],
+                [0, 1, 0],
+                [-math.sin(pitch_rad), 0, math.cos(pitch_rad)]
+            ])
+            rot_z = np.array([
+                [math.cos(yaw_rad), -math.sin(yaw_rad), 0],
+                [math.sin(yaw_rad), math.cos(yaw_rad), 0],
+                [0, 0, 1]
+            ])
+
+            correction_matrix = np.eye(4)
+            correction_matrix[:3, :3] = np.dot(rot_z, np.dot(rot_y, rot_x))
+
+            corrected_camera_position = np.dot(correction_matrix, camera_position)
+            corrected_position = corrected_camera_position[:3]
+
             if self.endpoint is None:
-                # self.get_logger().error("self.endpoint未初始化")
                 return None
-            
-            # 步骤2：# 相机坐标系到手爪坐标系
-            pose_end = np.matmul(self.hand2cam_tf_matrix, common.xyz_euler_to_mat(position, (0, 0, 0)))
-            # self.get_logger().info("第一次矩阵乘法完成")
-             # 步骤3： #手爪坐标系到世界坐标系
+
+            # 3. Transform through hand to camera and robot base
+            pose_end = np.matmul(self.hand2cam_tf_matrix,
+                                 common.xyz_euler_to_mat(corrected_position, (0, 0, 0)))
             world_pose = np.matmul(self.endpoint, pose_end)
-            # self.get_logger().info("第二次矩阵乘法完成")
-            # 提取位置信息
-            pose_t, pose_r = common.mat_to_xyz_euler(world_pose)
-            # self.get_logger().info(f"位置计算完成: {pose_t}")
-            
-            return pose_t            # 返回物体在世界坐标系中的位置
-        except Exception as e:
-            # self.get_logger().error(f"位置计算错误: {str(e)}")
+            pose_t, _ = common.mat_to_xyz_euler(world_pose)
+
+            return pose_t
+        except Exception:
             import traceback
-            # self.get_logger().error(traceback.format_exc())
+            traceback.print_exc()
             return None
 
     def get_min_distance(self, depth_image):
