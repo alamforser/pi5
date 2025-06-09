@@ -30,6 +30,7 @@ from kinematics.kinematics_control import set_joint_value_target
 from servo_controller.bus_servo_control import set_servo_position
 from example.rgbd_function.position_change_detect import position_reorder
 from servo_controller.action_group_controller import ActionGroupController
+from sklearn import linear_model
 
 def depth_pixel_to_camera(pixel_coords, intrinsic_matrix):
     fx, fy, cx, cy = intrinsic_matrix[0], intrinsic_matrix[4], intrinsic_matrix[2], intrinsic_matrix[5]
@@ -107,18 +108,6 @@ class ObjectClassificationNode(Node):
                 self.plane_coeff = self.get_parameter('plane_coeff').value
             else:
                 self.plane_coeff = None
-
-
-            # Validate plane_distance (expected in millimeters)
-            try:
-                pd_value = float(self.plane_distance)
-            except (TypeError, ValueError):
-                pd_value = None
-            if pd_value is None or pd_value < 100 or pd_value > 1000:
-                self.get_logger().warning(
-                    'plane_distance parameter %s is outside the expected 100-1000 mm range; enabling calibration mode.',
-                    str(self.plane_distance))
-                self.debug = True
             
             # print(f"参数获取到: debug={self.debug}, plane_distance={self.plane_distance}")
             
@@ -513,6 +502,7 @@ class ObjectClassificationNode(Node):
             # self.get_logger().error(traceback.format_exc())
             return []
 
+
     def shape_recognition(self, rgb_image, depth_image, depth_color_map, intrinsic_matrix, min_dist):
         # self.get_logger().info(f"开始形状识别，最小距离: {min_dist}")
         object_info_list = []
@@ -525,7 +515,8 @@ class ObjectClassificationNode(Node):
             cylinder_horizontal_index = 0
             
             # self.get_logger().info("准备获取轮廓")
-            contours = self.get_contours(depth_image, intrinsic_matrix, min_dist)
+            # contours = self.get_contours(depth_image, intrinsic_matrix, min_dist)
+            contours = self.get_contours(np.copy(depth_image), intrinsic_matrix, min_dist) # 传入depth_image的副本以防被修改
             # self.get_logger().info(f"获取到{len(contours)}个轮廓")
             
             for i, obj in enumerate(contours):
