@@ -39,11 +39,15 @@ def launch_setup(context):
             os.path.join(kinematics_package_path, 'launch/kinematics_node.launch.py')),
     )
 
+    # Parameters include plane_distance and plane_coeff for table calibration
     object_classification_node = Node(
         package='example',
         executable='object_classification',
         output='screen',
-        parameters=[os.path.join(example_package_path, 'config/object_classification_plane_distance.yaml'), {'category': category, 'start': start, 'debug': debug}]
+        parameters=[
+            os.path.join(example_package_path, 'config/object_classification_plane_distance.yaml'),
+            {'category': category, 'start': start, 'debug': debug}
+        ]
     )
 
     return [start_arg,
