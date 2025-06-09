@@ -1,4 +1,7 @@
 /**:
   ros__parameters:
-    plane_distance: 309
-    plane_coeff: [0.0, 0.0, 0.0]
+    plane_coeff:
+    - 0.0406467883459613
+    - -0.5320234024861512
+    - 0.21367889464945303
+    plane_distance: 183
