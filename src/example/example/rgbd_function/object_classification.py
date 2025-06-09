@@ -12,6 +12,7 @@ import rclpy
 import queue
 import signal
 import threading
+import random
 import numpy as np
 import message_filters
 from rclpy.node import Node
@@ -30,7 +31,6 @@ from kinematics.kinematics_control import set_joint_value_target
 from servo_controller.bus_servo_control import set_servo_position
 from example.rgbd_function.position_change_detect import position_reorder
 from servo_controller.action_group_controller import ActionGroupController
-from sklearn import linear_model
 
 def depth_pixel_to_camera(pixel_coords, intrinsic_matrix):
     fx, fy, cx, cy = intrinsic_matrix[0], intrinsic_matrix[4], intrinsic_matrix[2], intrinsic_matrix[5]
@@ -40,6 +40,166 @@ def depth_pixel_to_camera(pixel_coords, intrinsic_matrix):
     z = pz
     return np.array([x, y, z])
 
+
+class SearchPlane:
+    def __init__(self, depth_image_width, depth_image_height, depth_camera_intrinsics, roi_rect=None):
+        """
+        初始化平面搜索类
+        Args:
+            depth_image_width: 深度图像宽度
+            depth_image_height: 深度图像高度
+            depth_camera_intrinsics: 深度相机内参 [fx, fy, cx, cy]
+            roi_rect: 感兴趣区域矩形 [x, y, width, height]
+        """
+        # 相机内参
+        self.fx = depth_camera_intrinsics[0]  # 焦距x
+        self.fy = depth_camera_intrinsics[1]  # 焦距y
+        self.cx = depth_camera_intrinsics[2]  # 光心x
+        self.cy = depth_camera_intrinsics[3]  # 光心y
+
+        # 图像尺寸
+        self.width = depth_image_width
+        self.height = depth_image_height
+
+        # ROI区域设置
+        self.roi_rect = roi_rect
+        self.roi_mask = np.zeros(shape=[self.height, self.width], dtype=np.uint8)
+        if self.roi_rect is not None:
+            self.roi_mask[roi_rect[1]:roi_rect[1] + roi_rect[3],
+            roi_rect[0]:roi_rect[0] + roi_rect[2]] = 1
+        else:
+            self.roi_mask[:, :] = 1
+
+    def calculate_distance(self, point1, point2):
+        """计算两点之间的欧氏距离"""
+        return np.sqrt(np.sum((point1 - point2) ** 2))
+
+    def estimate_plane(self, points, normalize=True):
+        """
+        使用三个点估计平面参数
+        Args:
+            points: 3x3的点坐标数组
+            normalize: 是否归一化法向量
+        Returns:
+            平面参数 [a, b, c, d] 其中 ax + by + cz + d = 0
+        """
+        vector1 = points[1, :] - points[0, :]
+        vector2 = points[2, :] - points[0, :]
+
+        # 检查点是否共线
+        if not np.all(vector1):
+            return None
+
+        # 检查两个向量是否平行
+        direction_ratio = vector2 / vector1
+        if not ((direction_ratio[0] != direction_ratio[1]) or
+                (direction_ratio[2] != direction_ratio[1])):
+            return None
+
+        # 计算平面法向量
+        normal = np.cross(vector1, vector2)
+        if normalize:
+            normal = normal / np.linalg.norm(normal)
+        
+        # 确保法向量朝向摄像头
+        if normal[2] > 0:  # 假设摄像头视线方向为 [0, 0, 1]
+            normal = -normal
+
+        # 计算平面方程的d参数
+        d = -np.dot(normal, points[0, :])
+        return np.append(normal, d)
+
+    def ransac_plane_fit(self, points,
+                         distance_threshold=0.05,
+                         confidence=0.99,
+                         sample_size=3,
+                         max_iterations=1000,
+                         min_point_distance=0.1):
+        """
+        使用RANSAC算法拟合平面
+        Args:
+            points: 点云数据
+            distance_threshold: 内点判定阈值
+            confidence: 置信度
+            sample_size: 采样点数
+            max_iterations: 最大迭代次数
+            min_point_distance: 采样点之间的最小距离
+        """
+        random.seed(time.time())
+        best_inlier_count = -999
+        iteration_count = 0
+        required_iterations = 10
+        total_points = len(points)
+        point_indices = range(total_points)
+
+        while iteration_count < required_iterations:
+            # 随机采样三个点
+            sampled_indices = random.sample(point_indices, sample_size)
+
+            # 检查采样点之间的距离是否满足最小距离要求
+            if (self.calculate_distance(points[sampled_indices[0]], points[sampled_indices[1]]) < min_point_distance or
+                    self.calculate_distance(points[sampled_indices[0]],
+                                            points[sampled_indices[2]]) < min_point_distance or
+                    self.calculate_distance(points[sampled_indices[1]],
+                                            points[sampled_indices[2]]) < min_point_distance):
+                continue
+
+            # 估计平面参数
+            plane_params = self.estimate_plane(points[sampled_indices, :])
+            if plane_params is None:
+                continue
+
+            # 计算所有点到平面的距离
+            distances = np.abs(np.dot(points, plane_params[:3]) + plane_params[3])
+            inlier_mask = distances < distance_threshold
+            inlier_count = np.sum(inlier_mask)
+
+            # 更新最佳模型
+            if inlier_count > best_inlier_count:
+                best_inlier_count = inlier_count
+                best_plane_params = plane_params
+                best_inlier_mask = inlier_mask
+                best_sample = sampled_indices
+
+                # 更新所需迭代次数
+                inlier_ratio = inlier_count / total_points
+                required_iterations = int(np.log(1 - confidence) /
+                                          np.log(1 - inlier_ratio ** sample_size))
+
+            iteration_count += 1
+            if iteration_count > max_iterations:
+                return None, None, None
+
+        return np.where(best_inlier_mask)[0], best_plane_params, best_sample
+
+    def find_plane(self, depth_image):
+        """
+        在深度图像中寻找平面
+        Args:
+            depth_image: 深度图像（单位：毫米）
+        Returns:
+            inlier_indices: 平面内点的索引
+            plane_params: 平面参数
+            sampled_indices: 用于估计平面的采样点索引
+        """
+        # 应用ROI掩码
+        if self.roi_rect is not None:
+            depth_image = depth_image * self.roi_mask
+
+        # 提取有效深度点
+        valid_mask = depth_image > 10
+        rows, cols = np.where(valid_mask)
+        depths = depth_image[valid_mask] / 1000.0  # 转换为米
+
+        # 计算三维坐标
+        points_3d = np.vstack([
+            (cols - self.cx) * depths / self.fx,  # X坐标
+            (rows - self.cy) * depths / self.fy,  # Y坐标
+            depths  # Z坐标
+        ]).T
+
+        # 使用RANSAC拟合平面
+        return self.ransac_plane_fit(points_3d, distance_threshold=0.01)
 
 class ObjectClassificationNode(Node):
     hand2cam_tf_matrix = [
@@ -129,7 +289,8 @@ class ObjectClassificationNode(Node):
             rgb_sub = message_filters.Subscriber(self, Image, '/ascamera/camera_publisher/rgb0/image')
             depth_sub = message_filters.Subscriber(self, Image, '/ascamera/camera_publisher/depth0/image_raw')
             info_sub = message_filters.Subscriber(self, CameraInfo, '/ascamera/camera_publisher/depth0/camera_info')
-            
+            # 在获取到相机信息后再初始化 SearchPlane
+            self.plane_finder = None
             # print("准备创建同步器")
             sync = message_filters.ApproximateTimeSynchronizer([rgb_sub, depth_sub, info_sub], 3, 0.02)
             sync.registerCallback(self.multi_callback)
@@ -163,6 +324,96 @@ class ObjectClassificationNode(Node):
             # print(f"初始化过程中出错: {str(e)}")
             import traceback
             traceback.print_exc()
+
+
+    def camera_info_callback(self, msg):
+        # 这个回调只在程序开始时运行几次，获取内参后就可以停止或忽略后续消息
+        if self.camera_intrinsics is None:
+            self.camera_intrinsics = msg.k # 内参矩阵 K
+            self.get_logger().info("成功获取到相机内参！")
+            
+            # 使用获取到的内参来初始化 SearchPlane
+            # 假设深度图尺寸为 640x480
+            image_width = 640 
+            image_height = 480
+            # 从内参矩阵 K 中提取 fx, fy, cx, cy
+            fx = self.camera_intrinsics[0]
+            fy = self.camera_intrinsics[4]
+            cx = self.camera_intrinsics[2]
+            cy = self.camera_intrinsics[5]
+            
+            # 将你的ROI [y_min, y_max, x_min, x_max] 转换为 [x, y, width, height]
+            # self.roi = [70, 320, 120, 520] -> y_min, y_max, x_min, x_max
+            roi_x = self.roi[2]
+            roi_y = self.roi[0]
+            roi_w = self.roi[3] - self.roi[2]
+            roi_h = self.roi[1] - self.roi[0]
+            
+            self.plane_finder = SearchPlane(image_width, image_height, [fx, fy, cx, cy], [roi_x, roi_y, roi_w, roi_h])
+            self.get_logger().info("平面搜索模块初始化完成！")
+
+
+    def segment_objects_with_custom_ransac(self, depth_image):
+        """
+        使用自定义的RANSAC实现来寻找平面并分割物体。
+        """
+        if self.plane_finder is None:
+            self.get_logger().warn("平面搜索模块尚未初始化！")
+            return [], None
+
+        # 1. 使用 SearchPlane 寻找桌面平面
+        # find_plane 需要的深度图单位是毫米
+        inlier_indices, plane_params, _ = self.plane_finder.find_plane(depth_image)
+
+        if plane_params is None:
+            self.get_logger().warn("未能找到有效的桌面平面！")
+            return [], None
+        
+        # 2. 基于平面参数进行背景剔除
+        # plane_params 是 [a, b, c, d]，对于平面方程 ax + by + cz + d = 0
+        a, b, c, d = plane_params
+        h, w = depth_image.shape
+        object_mask = np.zeros((h, w), dtype=np.uint8)
+
+        # 提取相机内参用于坐标转换
+        fx, fy, cx, cy = self.plane_finder.fx, self.plane_finder.fy, self.plane_finder.cx, self.plane_finder.cy
+
+        # 遍历ROI，计算每个点到平面的距离
+        y_min, y_max, x_min, x_max = self.roi
+        for v in range(y_min, y_max):
+            for u in range(x_min, x_max):
+                z_mm = depth_image[v, u]
+                if z_mm <= 10: # 忽略无效点
+                    continue
+                
+                z_m = z_mm / 1000.0 # 转换为米
+                x_m = (u - cx) * z_m / fx
+                y_m = (v - cy) * z_m / fy
+
+                # 计算点到平面的垂直距离
+                # dist = |ax + by + cz + d| / sqrt(a^2 + b^2 + c^2)
+                # 因为 estimate_plane 中对法向量做了归一化, sqrt(a^2+b^2+c^2) ≈ 1
+                dist = abs(a * x_m + b * y_m + c * z_m + d)
+
+                # 点 (x_m, y_m, z_m) 在平面法向量的反方向，说明在平面前方
+                # 并且距离大于阈值，则认为是物体
+                # c * z_m < -(a * x_m + b * y_m + d)
+                # 简化的判断：z_actual < z_plane
+                if (a * x_m + b * y_m + c * z_m + d) < -0.01: # 阈值 -1cm，因为法向量朝向相机，物体点会让ax+by+cz+d的结果更负
+                    object_mask[v, u] = 255
+        
+        # 3. 对掩码进行后处理并寻找轮廓
+        kernel = np.ones((5, 5), np.uint8)
+        object_mask = cv2.morphologyEx(object_mask, cv2.MORPH_OPEN, kernel)
+        object_mask = cv2.morphologyEx(object_mask, cv2.MORPH_CLOSE, kernel)
+
+        if self.debug:
+            cv2.imshow("Object Mask (Custom RANSAC)", object_mask)
+            cv2.waitKey(1)
+            
+        contours, _ = cv2.findContours(object_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        return contours
 
     def init_process(self):
         self.timer.cancel()
@@ -461,65 +712,45 @@ class ObjectClassificationNode(Node):
 
     def get_contours(self, depth_image, intrinsic_matrix, min_dist):
         try:
-            # --- 动态平面拟合与分割 ---
-            roi_y_min, roi_y_max, roi_x_min, roi_x_max = self.roi
+            if self.plane_coeff is not None:
+                fx, fy, cx, cy = intrinsic_matrix[0], intrinsic_matrix[4], intrinsic_matrix[2], intrinsic_matrix[5]
+                z = depth_image.astype(np.float32) / 1000.0
+                xs = (np.arange(depth_image.shape[1]) - cx) / fx
+                ys = (np.arange(depth_image.shape[0]) - cy) / fy
+                X = xs[np.newaxis, :] * z
+                Y = ys[:, np.newaxis] * z
+                a, b, c = self.plane_coeff
+                expected_z = a * X + b * Y + c
+                mask = (z - expected_z) > 0.01
+                depth_image = np.where(mask, depth_image, 0)
+            else:
+                # 检查self.plane_distance是否为None
+                if self.plane_distance is None:
+                    self.plane_distance = 200
+                depth_image = np.where(depth_image > self.plane_distance - 10, 0, depth_image)
 
-            # 仅在 ROI 区域内选取用于平面拟合的点
-            mask_roi = np.zeros(depth_image.shape, dtype=bool)
-            mask_roi[roi_y_min:roi_y_max, roi_x_min:roi_x_max] = True
-
-            # 剔除靠近相机的前景以及无效的零深度点
-            valid_depth_mask = (depth_image > min_dist + 15) & (depth_image < 800) & mask_roi
-            v_indices, u_indices = np.where(valid_depth_mask)
-            depths = depth_image[v_indices, u_indices] / 1000.0
-
-            # 点数过少无法拟合平面
-            if len(v_indices) < 100:
-                self.get_logger().warning("Not enough points to fit a plane.")
-                return []
-
-            # 像素坐标转相机坐标系
-            fx, fy, cx, cy = intrinsic_matrix[0], intrinsic_matrix[4], intrinsic_matrix[2], intrinsic_matrix[5]
-            x_cam = (u_indices - cx) * depths / fx
-            y_cam = (v_indices - cy) * depths / fy
-            z_cam = depths
-            plane_points_3d = np.vstack((x_cam, y_cam, z_cam)).T
-
-            # RANSAC 拟合平面 z = a*x + b*y + c
-            ransac = linear_model.RANSACRegressor(residual_threshold=0.005,
-                                                  max_trials=100,
-                                                  min_samples=50)
-            ransac.fit(plane_points_3d[:, :2], plane_points_3d[:, 2])
-            a, b = ransac.estimator_.coef_
-            c = ransac.estimator_.intercept_
-
-            # 对整幅图像计算理论平面深度
-            v_all, u_all = np.mgrid[0:depth_image.shape[0], 0:depth_image.shape[1]]
-            z_all = depth_image.astype(np.float32) / 1000.0
-            x_all = (u_all - cx) * z_all / fx
-            y_all = (v_all - cy) * z_all / fy
-            expected_z = a * x_all + b * y_all + c
-
-            # 平面以上一定高度视为物体
-            object_mask = (expected_z - z_all) > 0.01
-            final_object_mask = object_mask & (z_all > 0) & mask_roi
-
-            object_image = final_object_mask.astype(np.uint8) * 255
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-            object_image = cv2.morphologyEx(object_image, cv2.MORPH_OPEN, kernel, iterations=2)
-            object_image = cv2.morphologyEx(object_image, cv2.MORPH_CLOSE, kernel, iterations=2)
-
-            contours, _ = cv2.findContours(object_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-            if self.debug:
-                cv2.imshow("Object Segmentation", object_image)
-
-            self.get_logger().info(f"Found {len(contours)} contours after plane fitting.")
+            # 将深度值大于最小距离+40mm的像素置0
+            depth_image = np.where(depth_image > min_dist + 40, 0, depth_image)
+            # self.get_logger().info("第二次深度过滤完成")
+            
+            # 归一化深度图像
+            sim_depth_image_sort = np.clip(depth_image, 0, self.plane_distance - 10).astype(np.float64) / (self.plane_distance - 10) * 255
+            depth_gray = sim_depth_image_sort.astype(np.uint8)
+            # self.get_logger().info("深度图像归一化完成")
+            
+            # 二值化
+            _, depth_bit = cv2.threshold(depth_gray, 1, 255, cv2.THRESH_BINARY)
+            # self.get_logger().info("深度图像二值化完成")
+            
+            # 查找轮廓
+            contours, hierarchy = cv2.findContours(depth_bit, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            # self.get_logger().info(f"找到{len(contours)}个轮廓")
+            
             return contours
         except Exception as e:
-            self.get_logger().error(f"Error in get_contours: {str(e)}")
+            # self.get_logger().error(f"获取轮廓时出错: {str(e)}")
             import traceback
-            self.get_logger().error(traceback.format_exc())
+            # self.get_logger().error(traceback.format_exc())
             return []
 
 
@@ -536,7 +767,8 @@ class ObjectClassificationNode(Node):
             
             # self.get_logger().info("准备获取轮廓")
             # contours = self.get_contours(depth_image, intrinsic_matrix, min_dist)
-            contours = self.get_contours(np.copy(depth_image), intrinsic_matrix, min_dist) # 传入depth_image的副本以防被修改
+            # contours = self.get_contours(np.copy(depth_image), intrinsic_matrix, min_dist) # 传入depth_image的副本以防被修改
+            contours = self.segment_objects_with_custom_ransac(np.copy(depth_image))
             # self.get_logger().info(f"获取到{len(contours)}个轮廓")
             
             for i, obj in enumerate(contours):
