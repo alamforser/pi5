@@ -257,6 +257,7 @@ class ObjectClassificationNode(Node):
             self.endpoint = None
             self.last_position = 0, 0
             self.last_object_info_list = []
+            self.camera_intrinsics = None
             signal.signal(signal.SIGINT, self.shutdown)
             
             self.image_queue = queue.Queue(maxsize=2)
@@ -629,6 +630,9 @@ class ObjectClassificationNode(Node):
         self.moving = False
 
     def multi_callback(self, ros_rgb_image, ros_depth_image, depth_camera_info):
+        # 初始化平面搜索模块
+        if self.camera_intrinsics is None:
+            self.camera_info_callback(depth_camera_info)
         if self.image_queue.full():
             # 如果队列已满，丢弃最旧的图像(if the queue is full, discard the oldest image)
             self.image_queue.get()
