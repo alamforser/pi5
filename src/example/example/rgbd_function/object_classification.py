@@ -461,45 +461,65 @@ class ObjectClassificationNode(Node):
 
     def get_contours(self, depth_image, intrinsic_matrix, min_dist):
         try:
-            if self.plane_coeff is not None:
-                fx, fy, cx, cy = intrinsic_matrix[0], intrinsic_matrix[4], intrinsic_matrix[2], intrinsic_matrix[5]
-                z = depth_image.astype(np.float32) / 1000.0
-                xs = (np.arange(depth_image.shape[1]) - cx) / fx
-                ys = (np.arange(depth_image.shape[0]) - cy) / fy
-                X = xs[np.newaxis, :] * z
-                Y = ys[:, np.newaxis] * z
-                a, b, c = self.plane_coeff
-                expected_z = a * X + b * Y + c
-                mask = (z - expected_z) > 0.01
-                depth_image = np.where(mask, depth_image, 0)
-            else:
-                # 检查self.plane_distance是否为None
-                if self.plane_distance is None:
-                    self.plane_distance = 200
-                depth_image = np.where(depth_image > self.plane_distance - 10, 0, depth_image)
+            # --- 动态平面拟合与分割 ---
+            roi_y_min, roi_y_max, roi_x_min, roi_x_max = self.roi
 
-            # 将深度值大于最小距离+40mm的像素置0
-            depth_image = np.where(depth_image > min_dist + 40, 0, depth_image)
-            # self.get_logger().info("第二次深度过滤完成")
-            
-            # 归一化深度图像
-            sim_depth_image_sort = np.clip(depth_image, 0, self.plane_distance - 10).astype(np.float64) / (self.plane_distance - 10) * 255
-            depth_gray = sim_depth_image_sort.astype(np.uint8)
-            # self.get_logger().info("深度图像归一化完成")
-            
-            # 二值化
-            _, depth_bit = cv2.threshold(depth_gray, 1, 255, cv2.THRESH_BINARY)
-            # self.get_logger().info("深度图像二值化完成")
-            
-            # 查找轮廓
-            contours, hierarchy = cv2.findContours(depth_bit, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-            # self.get_logger().info(f"找到{len(contours)}个轮廓")
-            
+            # 仅在 ROI 区域内选取用于平面拟合的点
+            mask_roi = np.zeros(depth_image.shape, dtype=bool)
+            mask_roi[roi_y_min:roi_y_max, roi_x_min:roi_x_max] = True
+
+            # 剔除靠近相机的前景以及无效的零深度点
+            valid_depth_mask = (depth_image > min_dist + 15) & (depth_image < 800) & mask_roi
+            v_indices, u_indices = np.where(valid_depth_mask)
+            depths = depth_image[v_indices, u_indices] / 1000.0
+
+            # 点数过少无法拟合平面
+            if len(v_indices) < 100:
+                self.get_logger().warning("Not enough points to fit a plane.")
+                return []
+
+            # 像素坐标转相机坐标系
+            fx, fy, cx, cy = intrinsic_matrix[0], intrinsic_matrix[4], intrinsic_matrix[2], intrinsic_matrix[5]
+            x_cam = (u_indices - cx) * depths / fx
+            y_cam = (v_indices - cy) * depths / fy
+            z_cam = depths
+            plane_points_3d = np.vstack((x_cam, y_cam, z_cam)).T
+
+            # RANSAC 拟合平面 z = a*x + b*y + c
+            ransac = linear_model.RANSACRegressor(residual_threshold=0.005,
+                                                  max_trials=100,
+                                                  min_samples=50)
+            ransac.fit(plane_points_3d[:, :2], plane_points_3d[:, 2])
+            a, b = ransac.estimator_.coef_
+            c = ransac.estimator_.intercept_
+
+            # 对整幅图像计算理论平面深度
+            v_all, u_all = np.mgrid[0:depth_image.shape[0], 0:depth_image.shape[1]]
+            z_all = depth_image.astype(np.float32) / 1000.0
+            x_all = (u_all - cx) * z_all / fx
+            y_all = (v_all - cy) * z_all / fy
+            expected_z = a * x_all + b * y_all + c
+
+            # 平面以上一定高度视为物体
+            object_mask = (expected_z - z_all) > 0.01
+            final_object_mask = object_mask & (z_all > 0) & mask_roi
+
+            object_image = final_object_mask.astype(np.uint8) * 255
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+            object_image = cv2.morphologyEx(object_image, cv2.MORPH_OPEN, kernel, iterations=2)
+            object_image = cv2.morphologyEx(object_image, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+            contours, _ = cv2.findContours(object_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            if self.debug:
+                cv2.imshow("Object Segmentation", object_image)
+
+            self.get_logger().info(f"Found {len(contours)} contours after plane fitting.")
             return contours
         except Exception as e:
-            # self.get_logger().error(f"获取轮廓时出错: {str(e)}")
+            self.get_logger().error(f"Error in get_contours: {str(e)}")
             import traceback
-            # self.get_logger().error(traceback.format_exc())
+            self.get_logger().error(traceback.format_exc())
             return []
 
 
