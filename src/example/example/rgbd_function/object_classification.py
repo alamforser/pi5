@@ -103,6 +103,10 @@ class ObjectClassificationNode(Node):
             # print("准备获取参数")
             self.debug = self.get_parameter('debug').value
             self.plane_distance = self.get_parameter('plane_distance').value
+            if self.has_parameter('plane_coeff'):
+                self.plane_coeff = self.get_parameter('plane_coeff').value
+            else:
+                self.plane_coeff = None
             
             # print(f"参数获取到: debug={self.debug}, plane_distance={self.plane_distance}")
             
@@ -437,19 +441,42 @@ class ObjectClassificationNode(Node):
         min_dist = depth_image[min_y, min_x]  # 获取距离摄像头最近的物体的距离(get the distance of the object that is closest to the camera)
         return min_dist
 
-    def get_contours(self, depth_image, min_dist):
+    def fit_plane(self, depth_image, intrinsic_matrix):
+        roi_y_min, roi_y_max, roi_x_min, roi_x_max = self.roi
+        points = []
+        for v in range(roi_y_min, roi_y_max):
+            for u in range(roi_x_min, roi_x_max):
+                z = depth_image[v, u] / 1000.0
+                if z <= 0:
+                    continue
+                x, y, zc = depth_pixel_to_camera([u, v, z], intrinsic_matrix)
+                points.append([x, y, zc])
+        if len(points) < 3:
+            return None
+        pts = np.array(points)
+        A = np.c_[pts[:, 0], pts[:, 1], np.ones(len(pts))]
+        coef, _, _, _ = np.linalg.lstsq(A, pts[:, 2], rcond=None)
+        return coef
+
+    def get_contours(self, depth_image, intrinsic_matrix, min_dist):
         try:
-            # 检查self.plane_distance是否为None
-            if self.plane_distance is None:
-                # 设置一个默认值
-                self.plane_distance = 200  # 使用一个合理的默认值
-            
-            # self.get_logger().info(f"plane_distance值: {self.plane_distance}")
-            
-            # 将深度值大于平面距离的像素置0
-            depth_image = np.where(depth_image > self.plane_distance - 10, 0, depth_image)
-            # self.get_logger().info("第一次深度过滤完成")
-            
+            if self.plane_coeff is not None:
+                fx, fy, cx, cy = intrinsic_matrix[0], intrinsic_matrix[4], intrinsic_matrix[2], intrinsic_matrix[5]
+                z = depth_image.astype(np.float32) / 1000.0
+                xs = (np.arange(depth_image.shape[1]) - cx) / fx
+                ys = (np.arange(depth_image.shape[0]) - cy) / fy
+                X = xs[np.newaxis, :] * z
+                Y = ys[:, np.newaxis] * z
+                a, b, c = self.plane_coeff
+                expected_z = a * X + b * Y + c
+                mask = (z - expected_z) > 0.01
+                depth_image = np.where(mask, depth_image, 0)
+            else:
+                # 检查self.plane_distance是否为None
+                if self.plane_distance is None:
+                    self.plane_distance = 200
+                depth_image = np.where(depth_image > self.plane_distance - 10, 0, depth_image)
+
             # 将深度值大于最小距离+40mm的像素置0
             depth_image = np.where(depth_image > min_dist + 40, 0, depth_image)
             # self.get_logger().info("第二次深度过滤完成")
@@ -486,7 +513,7 @@ class ObjectClassificationNode(Node):
             cylinder_horizontal_index = 0
             
             # self.get_logger().info("准备获取轮廓")
-            contours = self.get_contours(depth_image, min_dist)
+            contours = self.get_contours(depth_image, intrinsic_matrix, min_dist)
             # self.get_logger().info(f"获取到{len(contours)}个轮廓")
             
             for i, obj in enumerate(contours):
@@ -716,8 +743,12 @@ class ObjectClassificationNode(Node):
                         self.get_logger().info(str(min_dist))
                         if count > 50:
                             count = 0
-                            data = {'/**': {'ros__parameters': {'plane_distance': {}}}}
-                            data['/**']['ros__parameters']['plane_distance'] = int(min_dist)
+                            coeff = self.fit_plane(depth_image, depth_camera_info.k)
+                            self.plane_distance = int(min_dist)
+                            data = {'/**': {'ros__parameters': {'plane_distance': self.plane_distance}}}
+                            if coeff is not None:
+                                data['/**']['ros__parameters']['plane_coeff'] = [float(coeff[0]), float(coeff[1]), float(coeff[2])]
+                                self.plane_coeff = [float(coeff[0]), float(coeff[1]), float(coeff[2])]
                             common.save_yaml_data(data, os.path.join(
                                 os.path.abspath(os.path.join(os.path.split(os.path.realpath(__file__))[0], '../..')),
                                 'config/object_classification_plane_distance.yaml'))
