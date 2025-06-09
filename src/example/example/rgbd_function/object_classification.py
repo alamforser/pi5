@@ -107,6 +107,18 @@ class ObjectClassificationNode(Node):
                 self.plane_coeff = self.get_parameter('plane_coeff').value
             else:
                 self.plane_coeff = None
+
+
+            # Validate plane_distance (expected in millimeters)
+            try:
+                pd_value = float(self.plane_distance)
+            except (TypeError, ValueError):
+                pd_value = None
+            if pd_value is None or pd_value < 100 or pd_value > 1000:
+                self.get_logger().warning(
+                    'plane_distance parameter %s is outside the expected 100-1000 mm range; enabling calibration mode.',
+                    str(self.plane_distance))
+                self.debug = True
             
             # print(f"参数获取到: debug={self.debug}, plane_distance={self.plane_distance}")
             
@@ -981,4 +993,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
