@@ -59,6 +59,7 @@ class ShapeRecognitionNode(Node):
         self.gripper_depth = 0.015
         self.bridge = CvBridge()  # 用于ROS Image消息与OpenCV图像之间的转换
         self.image_queue = queue.Queue(maxsize=2)
+        
         self.joints_pub = self.create_publisher(ServosPosition, 'servo_controller', 1)
         self.buzzer_pub = self.create_publisher(BuzzerState, 'ros_robot_controller/set_buzzer', 1)
 
@@ -67,6 +68,7 @@ class ShapeRecognitionNode(Node):
         self.enable_srv = self.create_service(SetBool, '~/set_running', self.start_srv_callback)
         self.rgb_or_depth_srv = self.create_service(SetBool, '~/rgb_or_depth', self.rgb_or_depth_srv_callback)
         self.client = self.create_client(Trigger, 'controller_manager/init_finish')
+        
         self.create_service(SetStringList, '~/set_shape', self.set_shape_srv_callback)
         self.result_publisher = self.create_publisher(Image, '~/image_result',  1)
         
@@ -92,15 +94,15 @@ class ShapeRecognitionNode(Node):
         tf_buffer = Buffer()
         self.tf_listener = TransformListener(tf_buffer, self)
         tf_future = tf_buffer.wait_for_transform_async(
-            target_frame='depth_cam_depth_optical_frame',
-            source_frame='depth_cam_color_frame',
+            target_frame='depth_camera_link',
+            source_frame='rgb_camera_link',
             time=rclpy.time.Time()
         )
 
         rclpy.spin_until_future_complete(self, tf_future)
         try:
             transform = tf_buffer.lookup_transform(
-                'depth_cam_color_frame', 'rgb_camera_link', rclpy.time.Time(),
+                'depth_camera_link', 'rgb_camera_link', rclpy.time.Time(),
                 timeout=rclpy.duration.Duration(seconds=5.0))
             self.static_transform = transform  # 保存变换数据
             # self.get_logger().info(f'Static transform: {self.static_transform}')
