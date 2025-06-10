@@ -87,7 +87,7 @@ class ShapeRecognitionNode(Node):
 
         self.config_file = 'transform.yaml'
         self.calibration_file = 'calibration.yaml'
-        self.config_path = "/home/ubuntu/ros2_ws/src/app/config/"
+        self.config_path = "/home/ubuntu/ros2_ws/src/example/example/rgbd_function/config"
         self.base_gripper_height = utils.get_gripper_size(500)[1]
         tf_buffer = Buffer()
         self.tf_listener = TransformListener(tf_buffer, self)
