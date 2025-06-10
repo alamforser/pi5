@@ -196,10 +196,10 @@ class ShapeRecognitionNode(Node):
         self.extristric = np.array(config['extristric'])
 
         if self.sync is None:
-            self.rgb_sub = message_filters.Subscriber(self, Image, 'depth_cam/rgb/image_raw')
-            self.depth_sub = message_filters.Subscriber(self, Image, 'depth_cam/depth/image_raw')
-            self.depth_info_sub = message_filters.Subscriber(self, CameraInfo, 'depth_cam/depth/camera_info')
-            self.info_sub = message_filters.Subscriber(self, CameraInfo, 'depth_cam/rgb/camera_info')
+            self.rgb_sub = message_filters.Subscriber(self, Image, '/ascamera/camera_publisher/rgb0/image')
+            self.depth_sub = message_filters.Subscriber(self, Image, '/ascamera/camera_publisher/depth0/image_raw')
+            self.depth_info_sub = message_filters.Subscriber(self, CameraInfo, '/ascamera/camera_publisher/depth0/camera_info')
+            self.info_sub = message_filters.Subscriber(self, CameraInfo, '/ascamera/camera_publisher/rgb0/camera_info')
 
             # 同步时间戳, 时间允许有误差在0.03s
             self.sync = message_filters.ApproximateTimeSynchronizer([self.rgb_sub, self.depth_sub, self.info_sub, self.depth_info_sub], 3, 0.2)
