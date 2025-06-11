@@ -33,7 +33,7 @@
     <origin xyz="-0.00309786796953734 -0.0180033588479546 0.026950170065797" rpy="0 0 0"/>
     <parent link="gripper_link"/>
     <child link="r_link"/>
-    <axis xyz="0.999999784828379 0.000360574512731351 -0.000548023007084987"/>
+    <axis xyz="-0.999999784828379 -0.000360574512731351 0.000548023007084987"/>
     <limit lower="-1.57" upper="1.57" effort="1000" velocity="10"/>
   </joint>
 
@@ -71,7 +71,7 @@
     <limit lower="-1.57" upper="1.57" effort="1000" velocity="10"/>
     <mimic
       joint="r_joint"
-      multiplier="-1"
+      multiplier="1"
       offset="0" />
   </joint>
 
@@ -109,7 +109,7 @@
     <limit lower="-1.57" upper="1.57" effort="1000" velocity="10"/>
     <mimic
       joint="r_joint"
-      multiplier="-1"
+      multiplier="1"
       offset="0" />
   </joint>
 
@@ -147,7 +147,7 @@
     <limit lower="-1.57" upper="1.57" effort="1000" velocity="10"/>
     <mimic
       joint="r_joint"
-      multiplier="1"
+      multiplier="-1"
       offset="0" />
   </joint>
 
@@ -185,7 +185,7 @@
     <limit lower="-1.57" upper="1.57" effort="1000" velocity="10"/>
     <mimic
       joint="r_joint"
-      multiplier="1"
+      multiplier="-1"
       offset="0" />
   </joint>
 
@@ -223,7 +223,7 @@
     <limit lower="-1.57" upper="1.57" effort="1000" velocity="10"/>
     <mimic
       joint="r_joint"
-      multiplier="-1"
+      multiplier="1"
       offset="0" />
   </joint>
   
