@@ -36,8 +36,8 @@ from example.rgbd_function.utils import utils, calculate_grasp_yaw_by_depth, pos
 class ShapeRecognitionNode(Node):
     hand2cam_tf_matrix = [
         [0.0, 0.0, 1.0, -0.101],  # x
-        [-1.0, 0.0, 0.0, 0.01],  # y
-        [0.0, -1.0, 0.0, 0.05],  # z
+        [-1.0, 0.0, 0.0, 0.0],  # y
+        [0.0, -1.0, 0.0, 0.037],  # z
         [0.0, 0.0, 0.0, 1.0]
     ]
     '''
@@ -302,7 +302,6 @@ class ShapeRecognitionNode(Node):
                     if "sphere" in shape:
                         self.controller.run_action("target_1")
                     if "cylinder" in shape:
-                        # self.get_logger().info(f'111111111:{self.controller.run_action("target_2")}')
                         self.controller.run_action("target_2")
                     if "cuboid" in shape:
                         self.controller.run_action("target_3")
