@@ -299,7 +299,7 @@ def calculate_world_position(
     endpoint: np.ndarray,
     hand2cam_tf_matrix: np.ndarray,
     intrinsic_matrix: np.ndarray,
-    camera_roll_offset: float = -10.0,
+    camera_roll_offset: float = 10.0,
     camera_pitch_offset: float = 0.0,
     camera_yaw_offset: float = 0.0
 ) -> np.ndarray:
