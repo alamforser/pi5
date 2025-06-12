@@ -149,6 +149,328 @@ def warp_affine(image, points, scale=1.0):
     return cv2.warpAffine(image, rot, dsize=(h, w))
 
 
+def perspective_transform(img, src, dst, debug=False):
+    """
+    执行透视变换：将倾斜视角拍摄到的道路图像转换成鸟瞰图，即将摄像机的视角转换到和道路平行。(perform perspective transformation: converting a skewed view of a road image taken from an oblique angle into a top-down view, aligning the camera's viewpoint parallel to the road)
+    :param img: 输入图像(input image)
+    :param src: 源图像中待测矩形的四点坐标(the coordinates of the four points of the rectangle to be measured in the source image)
+    :param dst: 目标图像中矩形的四点坐标(the coordinates of the four points of the rectangle in the target image)
+    """
+    img_size = (img.shape[1], img.shape[0])
+    # 手动提取用于执行透视变换的顶点(manually extract the vertices for performing the perspective transformation)
+    '''
+    # left_down
+    # left_up
+    # right_up
+    # right_down
+    src = np.float32(
+        [[89, 370],
+         [128, 99],
+         [436, 99],
+         [472, 371]])
+    
+    dst = np.float32(
+        [[65, 430],
+         [65, 55],
+         [575,55],
+         [575,430]])
+    '''
+    m = cv2.getPerspectiveTransform(src, dst)  # 计算透视变换矩阵(calculate the perspective transformation matrix)
+    if debug:
+        m_inv = cv2.getPerspectiveTransform(dst, src)
+    else:
+        m_inv = None
+    # 进行透视变换 参数：输入图像、输出图像、目标图像大小、cv2.INTER_LINEAR插值方法(perform perspective transformation with parameters: input image, output image, target image size, and the cv2.INTER_LINEAR interpolation method)
+    warped = cv2.warpPerspective(img, m, img_size, flags=cv2.INTER_LINEAR)
+    #unwarped = cv2.warpPerspective(warped, m_inv, (warped.shape[1], warped.shape[0]), flags=cv2.INTER_LINEAR)  # 调试(debugging)
+
+    return warped, m, m_inv
+
+def pixels_to_world(pixels, K, T):
+    """
+    像素坐标转世界坐标(convert the pixel coordinates to world coordinates)
+    pixels 像素坐标列表(pixel coordinates list)
+    K 相机内参 np 矩阵(intrinsic camera parameters matrix K)
+    T 相机外参 np 矩阵(extrinsic camera parameters matrix T)
+    """
+    invK = K.I
+    t, r, _, _ =  tfs.affines.decompose(np.matrix(T))
+    invR = np.matrix(r).I
+    R_inv_T = np.dot(invR, np.matrix(t).T)
+    world_points = []
+    for p in pixels:
+        coords = np.float64([p[0], p[1], 1.0]).reshape(3, 1)
+        cam_point = np.dot(invK, coords)
+        world_point = np.dot(invR, cam_point)
+        scale = R_inv_T[2][0] / world_point[2][0]
+        scale_world = np.multiply(scale, world_point)
+        world_point = np.array((np.asmatrix(scale_world) - np.asmatrix(R_inv_T))).reshape(-1,)
+        world_points.append(world_point)
+    return world_points
+
+def world_to_pixels(world_points, K, T):
+    """
+    将世界坐标点转换为像素坐标
+    Args:
+        world_points: 世界坐标点列表
+        K: 相机内参矩阵
+        T: 外参矩阵 [R|t]
+    Returns:
+        pixel_points: 像素坐标点列表
+    """
+    pixel_points = []
+    for wp in world_points:
+        # 将世界坐标转换为齐次坐标
+        world_homo = np.append(wp, 1).reshape(4, 1)
+        # 通过外参矩阵转换到相机坐标系
+        camera_point = np.dot(T, world_homo)
+        # 投影到像素平面
+        pixel_homo = np.dot(K, camera_point[:3])
+        # 归一化
+        pixel = (pixel_homo / pixel_homo[2])[:2].reshape(-1)
+        pixel_points.append(pixel)
+    return pixel_points
+
+def calculate_pixel_length(world_length, K, T):
+    """
+    计算世界坐标中的长度在像素坐标中的对应长度
+    Args:
+        world_length: 世界坐标中的长度
+        K: 相机内参矩阵
+        T: 外参矩阵
+    Returns:
+        pixel_length: 像素坐标中的长度
+    """
+    # 定义起始点和方向
+    start_point = np.array([0, 0, 0])  # 起始点
+    direction = np.array([0, 1, 0])  # y方向
+
+    # 计算终点坐标
+    end_point = start_point + direction * world_length
+    # 转换两个端点到像素坐标
+    pixels = world_to_pixels([start_point, end_point], K, T)
+    # 计算像素距离
+    pixel_length = np.linalg.norm(pixels[1] - pixels[0])
+    
+    return int(pixel_length)
+
+def extristric_plane_shift(tvec, rmat, delta_z):
+    delta_t = np.array([[0], [0], [delta_z]])
+    tvec_new = tvec + np.dot(rmat, delta_t)
+    return tvec_new, rmat
+
+pixel_to_world = pixels_to_world
+
+def ros_pose_to_list(pose):
+    t = np.asarray([pose.position.x, pose.position.y, pose.position.z])
+    q = np.asarray([pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z])
+    return t, q
+
+def draw_tags(image, tags, corners_color=(0, 125, 255), center_color=(0, 255, 0)):
+    for tag in tags:
+        corners = tag.corners.astype(int)
+        center = tag.center.astype(int)
+        # cv2.putText(image, "%d"%tag.tag_id, (int(center[0] - (7 * len("%d"%tag.tag_id))), int(center[1]-10)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+        if corners_color is not None:
+            for p in corners:
+                cv2.circle(image, tuple(p.tolist()), 5, corners_color, -1)
+        if center_color is not None:
+            cv2.circle(image, tuple(center.tolist()), 8, center_color, -1)
+    return image
+
+def show_faces(detect_img, result_img, boxes, landmarks, bbox_color=(0, 255, 0), ll_color=(0, 0, 255)):
+    """Draw bounding boxes and face landmarks on image."""
+    detect_size = detect_img.shape[:2]
+    show_size = result_img.shape[:2]
+    for bb, ll in zip(boxes, landmarks):
+        p1 = point_remapped(bb[:2], detect_size, show_size, data_type=int)
+        p2 = point_remapped(bb[2:4], detect_size, show_size, data_type=int)
+        cv2.rectangle(result_img, p1, p2, bbox_color, 2)
+        for i, p in enumerate(ll):
+            x, y = point_remapped(p, detect_size, show_size, data_type=int)
+            cv2.circle(result_img, (x, y), 2, ll_color, 2)
+    return result_img
+
+
+def mp_face_location(results, img):
+    h, w, c, = img.shape
+    boxes = []
+    keypoints = []
+    if results.detections:
+        for detection in results.detections:
+            x_min = detection.location_data.relative_bounding_box.xmin
+            y_min = detection.location_data.relative_bounding_box.ymin
+            width = detection.location_data.relative_bounding_box.width
+            height = detection.location_data.relative_bounding_box.height
+            x_min, y_min = max(x_min * w, 0), max(y_min * h, 0)
+            x_max, y_max = min(x_min + width * w, w), min(y_min + height * h, h)
+            boxes.append((x_min, y_min, x_max, y_max))
+            relative_keypoints = detection.location_data.relative_keypoints
+            keypoints.append([(point.x * w, point.y * h) for point in relative_keypoints])
+    return boxes, keypoints
+
+
+
+def perspective_transform(img, src, dst, debug=False):
+    """
+    执行透视变换：将倾斜视角拍摄到的道路图像转换成鸟瞰图，即将摄像机的视角转换到和道路平行。(perform perspective transformation: converting a skewed view of a road image taken from an oblique angle into a top-down view, aligning the camera's viewpoint parallel to the road)
+    :param img: 输入图像(input image)
+    :param src: 源图像中待测矩形的四点坐标(the coordinates of the four points of the rectangle to be measured in the source image)
+    :param dst: 目标图像中矩形的四点坐标(the coordinates of the four points of the rectangle in the target image)
+    """
+    img_size = (img.shape[1], img.shape[0])
+    # 手动提取用于执行透视变换的顶点(manually extract the vertices for performing the perspective transformation)
+    '''
+    # left_down
+    # left_up
+    # right_up
+    # right_down
+    src = np.float32(
+        [[89, 370],
+         [128, 99],
+         [436, 99],
+         [472, 371]])
+    
+    dst = np.float32(
+        [[65, 430],
+         [65, 55],
+         [575,55],
+         [575,430]])
+    '''
+    m = cv2.getPerspectiveTransform(src, dst)  # 计算透视变换矩阵(calculate the perspective transformation matrix)
+    if debug:
+        m_inv = cv2.getPerspectiveTransform(dst, src)
+    else:
+        m_inv = None
+    # 进行透视变换 参数：输入图像、输出图像、目标图像大小、cv2.INTER_LINEAR插值方法(perform perspective transformation with parameters: input image, output image, target image size, and the cv2.INTER_LINEAR interpolation method)
+    warped = cv2.warpPerspective(img, m, img_size, flags=cv2.INTER_LINEAR)
+    #unwarped = cv2.warpPerspective(warped, m_inv, (warped.shape[1], warped.shape[0]), flags=cv2.INTER_LINEAR)  # 调试(debugging)
+
+    return warped, m, m_inv
+
+def pixels_to_world(pixels, K, T):
+    """
+    像素坐标转世界坐标(convert the pixel coordinates to world coordinates)
+    pixels 像素坐标列表(pixel coordinates list)
+    K 相机内参 np 矩阵(intrinsic camera parameters matrix K)
+    T 相机外参 np 矩阵(extrinsic camera parameters matrix T)
+    """
+    invK = K.I
+    t, r, _, _ =  tfs.affines.decompose(np.matrix(T))
+    invR = np.matrix(r).I
+    R_inv_T = np.dot(invR, np.matrix(t).T)
+    world_points = []
+    for p in pixels:
+        coords = np.float64([p[0], p[1], 1.0]).reshape(3, 1)
+        cam_point = np.dot(invK, coords)
+        world_point = np.dot(invR, cam_point)
+        scale = R_inv_T[2][0] / world_point[2][0]
+        scale_world = np.multiply(scale, world_point)
+        world_point = np.array((np.asmatrix(scale_world) - np.asmatrix(R_inv_T))).reshape(-1,)
+        world_points.append(world_point)
+    return world_points
+
+def world_to_pixels(world_points, K, T):
+    """
+    将世界坐标点转换为像素坐标
+    Args:
+        world_points: 世界坐标点列表
+        K: 相机内参矩阵
+        T: 外参矩阵 [R|t]
+    Returns:
+        pixel_points: 像素坐标点列表
+    """
+    pixel_points = []
+    for wp in world_points:
+        # 将世界坐标转换为齐次坐标
+        world_homo = np.append(wp, 1).reshape(4, 1)
+        # 通过外参矩阵转换到相机坐标系
+        camera_point = np.dot(T, world_homo)
+        # 投影到像素平面
+        pixel_homo = np.dot(K, camera_point[:3])
+        # 归一化
+        pixel = (pixel_homo / pixel_homo[2])[:2].reshape(-1)
+        pixel_points.append(pixel)
+    return pixel_points
+
+def calculate_pixel_length(world_length, K, T):
+    """
+    计算世界坐标中的长度在像素坐标中的对应长度
+    Args:
+        world_length: 世界坐标中的长度
+        K: 相机内参矩阵
+        T: 外参矩阵
+    Returns:
+        pixel_length: 像素坐标中的长度
+    """
+    # 定义起始点和方向
+    start_point = np.array([0, 0, 0])  # 起始点
+    direction = np.array([0, 1, 0])  # y方向
+
+    # 计算终点坐标
+    end_point = start_point + direction * world_length
+    # 转换两个端点到像素坐标
+    pixels = world_to_pixels([start_point, end_point], K, T)
+    # 计算像素距离
+    pixel_length = np.linalg.norm(pixels[1] - pixels[0])
+    
+    return int(pixel_length)
+
+def extristric_plane_shift(tvec, rmat, delta_z):
+    delta_t = np.array([[0], [0], [delta_z]])
+    tvec_new = tvec + np.dot(rmat, delta_t)
+    return tvec_new, rmat
+
+pixel_to_world = pixels_to_world
+
+def ros_pose_to_list(pose):
+    t = np.asarray([pose.position.x, pose.position.y, pose.position.z])
+    q = np.asarray([pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z])
+    return t, q
+
+def draw_tags(image, tags, corners_color=(0, 125, 255), center_color=(0, 255, 0)):
+    for tag in tags:
+        corners = tag.corners.astype(int)
+        center = tag.center.astype(int)
+        # cv2.putText(image, "%d"%tag.tag_id, (int(center[0] - (7 * len("%d"%tag.tag_id))), int(center[1]-10)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+        if corners_color is not None:
+            for p in corners:
+                cv2.circle(image, tuple(p.tolist()), 5, corners_color, -1)
+        if center_color is not None:
+            cv2.circle(image, tuple(center.tolist()), 8, center_color, -1)
+    return image
+
+def show_faces(detect_img, result_img, boxes, landmarks, bbox_color=(0, 255, 0), ll_color=(0, 0, 255)):
+    """Draw bounding boxes and face landmarks on image."""
+    detect_size = detect_img.shape[:2]
+    show_size = result_img.shape[:2]
+    for bb, ll in zip(boxes, landmarks):
+        p1 = point_remapped(bb[:2], detect_size, show_size, data_type=int)
+        p2 = point_remapped(bb[2:4], detect_size, show_size, data_type=int)
+        cv2.rectangle(result_img, p1, p2, bbox_color, 2)
+        for i, p in enumerate(ll):
+            x, y = point_remapped(p, detect_size, show_size, data_type=int)
+            cv2.circle(result_img, (x, y), 2, ll_color, 2)
+    return result_img
+
+
+def mp_face_location(results, img):
+    h, w, c, = img.shape
+    boxes = []
+    keypoints = []
+    if results.detections:
+        for detection in results.detections:
+            x_min = detection.location_data.relative_bounding_box.xmin
+            y_min = detection.location_data.relative_bounding_box.ymin
+            width = detection.location_data.relative_bounding_box.width
+            height = detection.location_data.relative_bounding_box.height
+            x_min, y_min = max(x_min * w, 0), max(y_min * h, 0)
+            x_max, y_max = min(x_min + width * w, w), min(y_min + height * h, h)
+            boxes.append((x_min, y_min, x_max, y_max))
+            relative_keypoints = detection.location_data.relative_keypoints
+            keypoints.append([(point.x * w, point.y * h) for point in relative_keypoints])
+    return boxes, keypoints
+
 class Colors:
     # Ultralytics color palette https://ultralytics.com/
     def __init__(self):
