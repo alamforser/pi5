@@ -104,6 +104,7 @@ class LineFollowingNode(Node):
         
         self.name = name
         self.color = ''
+        self.camera_type = 'Stereo'
         self.set_callback = False
         self.is_running = False
         self.color_picker = None
