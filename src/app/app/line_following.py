@@ -17,7 +17,7 @@ from app.common import ColorPicker
 from geometry_msgs.msg import Twist
 from std_srvs.srv import SetBool, Trigger
 from sensor_msgs.msg import Image, LaserScan
-from interfaces.srv import SetPoint, SetFloat64
+from interfaces.srv import SetPoint, SetFloat64, SetString
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from ros_robot_controller_msgs.msg import MotorsState, SetPWMServoState, PWMServoState
 from servo_controller_msgs.msg import ServosPosition
@@ -50,18 +50,22 @@ class LineFollower:
             return max_c_a
         return None
 
-    def __call__(self, image, result_image, threshold):
+    def __call__(self, image, result_image, threshold, color=None, use_color_picker=True):
         centroid_sum = 0
         h, w = image.shape[:2]
-        if os.environ['DEPTH_CAMERA_TYPE'] == 'ascamera':
-            w = w + 200
-        min_color = [int(self.target_lab[0] - 50 * threshold * 2),
-                     int(self.target_lab[1] - 50 * threshold),
-                     int(self.target_lab[2] - 50 * threshold)]
-        max_color = [int(self.target_lab[0] + 50 * threshold * 2),
-                     int(self.target_lab[1] + 50 * threshold),
-                     int(self.target_lab[2] + 50 * threshold)]
-        target_color = self.target_lab, min_color, max_color
+        if use_color_picker:
+            min_color = [int(self.target_lab[0] - 50 * threshold * 2),
+                         int(self.target_lab[1] - 50 * threshold),
+                         int(self.target_lab[2] - 50 * threshold)]
+            max_color = [int(self.target_lab[0] + 50 * threshold * 2),
+                         int(self.target_lab[1] + 50 * threshold),
+                         int(self.target_lab[2] + 50 * threshold)]
+            target_color = self.target_lab, min_color, max_color
+            lowerb = tuple(target_color[1])
+            upperb = tuple(target_color[2])
+        else:
+            lowerb = tuple(color['min'])
+            upperb = tuple(color['max'])
         for roi in self.rois:
             blob = image[int(roi[0]*h):int(roi[1]*h), int(roi[2]*w):int(roi[3]*w)]  # 截取roi(intercept roi)
             img_lab = cv2.cvtColor(blob, cv2.COLOR_RGB2LAB)  # rgb转lab(convert rgb into lab)
@@ -99,6 +103,7 @@ class LineFollowingNode(Node):
         super().__init__(name, allow_undeclared_parameters=True, automatically_declare_parameters_from_overrides=True)
         
         self.name = name
+        self.color = ''
         self.set_callback = False
         self.is_running = False
         self.color_picker = None
@@ -116,6 +121,8 @@ class LineFollowingNode(Node):
         self.image_height = None
         self.image_width = None
         self.bridge = CvBridge()
+        self.use_color_picker = True
+        self.lab_data = common.get_yaml_data("/home/ubuntu/software/lab_tool/lab_config.yaml")
         self.image_queue = queue.Queue(2)
         #self.camera_type = os.environ['DEPTH_CAMERA_TYPE']
         self.lidar_type = os.environ.get('LIDAR_TYPE')
@@ -126,6 +133,7 @@ class LineFollowingNode(Node):
         self.create_service(Trigger, '~/enter', self.enter_srv_callback)  # 进入玩法(enter the game)
         self.create_service(Trigger, '~/exit', self.exit_srv_callback)  # 退出玩法(exit the game)
         self.create_service(SetBool, '~/set_running', self.set_running_srv_callback)  # 开启玩法(start the game)
+        self.set_color_srv = self.create_service(SetString, '~/set_color', self.set_color_srv_callback)
         self.create_service(SetPoint, '~/set_target_color', self.set_target_color_srv_callback)  # 设置颜色(set the color)
         self.create_service(Trigger, '~/get_target_color', self.get_target_color_srv_callback)   # 获取颜色(get the color)
         self.create_service(SetFloat64, '~/set_threshold', self.set_threshold_srv_callback)  # 设置阈值(set the threshold)
@@ -231,6 +239,7 @@ class LineFollowingNode(Node):
     def set_target_color_srv_callback(self, request, response):
         self.get_logger().info('\033[1;32m%s\033[0m' % "set_target_color")
         with self.lock:
+            self.use_color_picker = True
             x, y = request.data.x, request.data.y
             self.follower = None
             if x == -1 and y == -1:
@@ -271,6 +280,15 @@ class LineFollowingNode(Node):
             response.success = True
             response.message = "set_threshold"
             return response
+
+    def set_color_srv_callback(self, request, response):
+        self.get_logger().info('\033[1;32m%s\033[0m' % 'set_color')
+        with self.lock:
+            self.color = request.data
+            self.use_color_picker = False
+        response.success = True
+        response.message = "set_color"
+        return response
 
     def lidar_callback(self, lidar_data):
         # 数据大小 = 扫描角度/每扫描一次增加的角度(data size= scanning angle/ the increased angle per scan)
@@ -314,38 +332,61 @@ class LineFollowingNode(Node):
         self.image_height, self.image_width = rgb_image.shape[:2]
         result_image = np.copy(rgb_image)  # 显示结果用的画面 (the image used to display the result)
         with self.lock:
-            # 颜色拾取器和识别巡线互斥, 如果拾取器存在就开始拾取(color picker and line recognition are exclusive. If there is color picker, start picking)
-            if self.color_picker is not None:  # 拾取器存在(color picker exists)
-                try:
-                    target_color, result_image = self.color_picker(rgb_image, result_image)
-                    if target_color is not None:
-                        self.color_picker = None
-                        self.follower = LineFollower(target_color, self)
-                        self.get_logger().info("target color: {}".format(target_color))
-                except Exception as e:
-                    self.get_logger().error(str(e))
-            else:
-                twist = Twist()
-                twist.linear.x = 0.15
-                if self.follower is not None:
+            if self.use_color_picker:
+                # 颜色拾取器和识别巡线互斥, 如果拾取器存在就开始拾取(color picker and line recognition are exclusive. If there is color picker, start picking)
+                if self.color_picker is not None:  # 拾取器存在(color picker exists)
                     try:
-                        result_image, deflection_angle = self.follower(rgb_image, result_image, self.threshold)
-                        if deflection_angle is not None and self.is_running and not self.stop:
-                            self.pid.update(deflection_angle)
-                            if 'Acker' in self.machine_type:
-                                steering_angle = common.set_range(-self.pid.output, -math.radians(322/2000*180), math.radians(322/2000*180))
-                                if steering_angle != 0:
-                                    R = 0.145/math.tan(steering_angle)
-                                    twist.angular.z = twist.linear.x/R
-                            else:
-                                twist.angular.z = common.set_range(-self.pid.output, -1.0, 1.0)
-                            self.mecanum_pub.publish(twist)
-                        elif self.stop:
-                            self.mecanum_pub.publish(Twist())
-                        else:
-                            self.pid.clear()
+                        target_color, result_image = self.color_picker(rgb_image, result_image)
+                        if target_color is not None:
+                            self.color_picker = None
+                            self.follower = LineFollower(target_color, self)
+                            self.get_logger().info("target color: {}".format(target_color))
                     except Exception as e:
                         self.get_logger().error(str(e))
+                else:
+                    twist = Twist()
+                    twist.linear.x = 0.15
+                    if self.follower is not None:
+                        try:
+                            result_image, deflection_angle = self.follower(rgb_image, result_image, self.threshold)
+                            if deflection_angle is not None and self.is_running and not self.stop:
+                                self.pid.update(deflection_angle)
+                                if 'Acker' in self.machine_type:
+                                    steering_angle = common.set_range(-self.pid.output, -math.radians(322/2000*180), math.radians(322/2000*180))
+                                    if steering_angle != 0:
+                                        R = 0.145/math.tan(steering_angle)
+                                        twist.angular.z = twist.linear.x/R
+                                else:
+                                    twist.angular.z = common.set_range(-self.pid.output, -1.0, 1.0)
+                                self.mecanum_pub.publish(twist)
+                            elif self.stop:
+                                self.mecanum_pub.publish(Twist())
+                            else:
+                                self.pid.clear()
+                        except Exception as e:
+                            self.get_logger().error(str(e))
+            else:
+                twist = Twist()
+                if self.color in common.range_rgb:
+                    twist.linear.x = 0.15
+                    self.follower = LineFollower([None, common.range_rgb[self.color]], self)
+                    result_image, deflection_angle = self.follower(rgb_image, result_image, self.threshold, self.lab_data['lab'][self.camera_type][self.color], False)
+                    if deflection_angle is not None and self.is_running and not self.stop:
+                        self.pid.update(deflection_angle)
+                        if self.machine_type == 'JetRover_Acker':
+                            steering_angle = common.set_range(-self.pid.output, -math.radians(150/1000*240), math.radians(150/1000*240))
+                            if steering_angle != 0:
+                                R = 0.213/math.tan(steering_angle)
+                                twist.angular.z = twist.linear.x/R
+                        else:
+                            twist.angular.z = common.set_range(-self.pid.output, -1.0, 1.0)
+                        self.mecanum_pub.publish(twist)
+                    elif self.stop:
+                        self.mecanum_pub.publish(Twist())
+                    else:
+                        self.pid.clear()
+                else:
+                    self.mecanum_pub.publish(twist)
         if self.debug:
             if self.image_queue.full():
                 # 如果队列已满，丢弃最旧的图像(if the queue is full, remove the oldest image)
