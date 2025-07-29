@@ -52,7 +52,7 @@ def launch_setup(context):
             'namespace': robot_name,
             'use_namespace': 'false',
             'autostart': 'true',
-            'use_teb': 'true',
+            'use_teb': 'false',
         }.items(),
     )
 
