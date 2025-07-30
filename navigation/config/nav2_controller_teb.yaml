@@ -64,7 +64,7 @@ controller_server:
       free_goal_vel: True
           
       # Obstacles
-      min_obstacle_dist: 0.08   #0.15
+      min_obstacle_dist: 0.05   #0.15
       inflation_dist: 0.6
       include_costmap_obstacles: True
       costmap_obstacles_behind_robot_dist: 1.0
